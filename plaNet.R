@@ -54,120 +54,568 @@ else (X3[x-1] + rnorm(1,0,4)/100)
 ### Start PlaNet
   
   # continuous-time series
-  
-intValCTS <- setClass("intValCTS",
-		      slots=c(values="integer",times="numeric"),
-		      validity = function(object){
-		      if (length(object@values)!=length(object@times)) stop("length of @times vector differs from length of @values list")
-		      }
+
+
+cSTF <- setClass("cSTF",
+                                       slots=c(times=c("POSIXct"),coord="matrix"),
+                                       validity = function(object){
+                                         if (length(object@times)!=nrow(object@coord)) stop("length of @times vector differs from number of rows in @coord matrix")
+                                       }
 )
 
-charValCTS <- setClass("charValCTS",
-		      slots=c(values="character",times="numeric"),
-		      validity = function(object){
-		      if (length(object@values)!=length(object@times)) stop("length of @times vector differs from length of @values list")
-		      }
+setMethod("length",
+          signature="cSTF",
+          definition=function(x){length(x@times)})
+
+setMethod("dim",
+          signature="cSTF",
+          definition=function(x){dim(x@coord)})
+
+
+intCSTS <- setClass("intCSTS",
+                       contains="cSTF",
+                       slots=c(values="integer"),
+                       validity = function(object){
+                         if (length(object@values)!=length(object)) stop("length of cSTF vector differs from length of @values list")
+                         }
+                       )
+exiCSTS=new("intCSTS",new("cSTF",times=c(as.POSIXct("2018-10-13 14:28:22",tz="America/Bogota"),as.POSIXct("2018-10-13 14:28:22",tz="America/Bogota")),coord=as.matrix(data.frame(X=c(1.2,1.4),Y=c(3.6,-1)))),values=as.integer(c(4,5)))
+
+charCSTS <- setClass("charCSTS",
+                     contains="cSTF",
+                     slots=c(values="character"),
+                     validity = function(object){
+                       if (length(object@values)!=length(object)) stop("length of cSTF vector differs from length of @values list")
+                     }
 )
 
-logicValCTS <- setClass("logicValCTS",
-		      slots=c(values="logical",times="numeric"),
-		      validity = function(object){
-		      if (length(object@values)!=length(object@times)) stop("length of @times vector differs from length of @values list")
-		      }
+excCSTS=new("charCSTS",new("cSTF",times=c(as.POSIXct("2018-10-13 14:28:22 America/Bogota"),as.POSIXct("2018-10-13 14:28:22 America/Bogota")),coord=as.matrix(data.frame(X=c(1.2,1.4),Y=c(3.6,-1)))),values=c("e","r"))
+
+logicCSTS <- setClass("logicCSTS",
+                      contains="cSTF",
+                      slots=c(values="logical"),
+                      validity = function(object){
+                        if (length(object@values)!=length(object)) stop("length of cSTF vector differs from length of @values list")
+                      }
 )
 
-numValCTS <- setClass("numValCTS",
-		      slots=c(values="numeric",times="numeric"),
-		      validity = function(object){
-		      if (length(object@values)!=length(object@times)) stop("length of @times vector differs from length of @values list")
-		      }
+exlCSTS=new("logicCSTS",new("cSTF",times=c(as.POSIXct("2018-10-13 14:28:22 America/Bogota"),as.POSIXct("2018-10-13 14:28:22 America/Bogota")),coord=as.matrix(data.frame(X=c(1.2,1.4),Y=c(3.6,-1)))),values=c(T,F))
+
+numCSTS <- setClass("numCSTS",
+                    contains="cSTF",
+                    slots=c(values="numeric"),
+                    validity = function(object){
+                      if (length(object@values)!=length(object)) stop("length of cSTF vector differs from length of @values list")
+                    }
 )
 
+exnCSTS=new("numCSTS",new("cSTF",times=c(as.POSIXct("2018-10-13 14:28:22 America/Bogota"),as.POSIXct("2018-10-13 14:28:22 America/Bogota")),coord=as.matrix(data.frame(X=c(1.2,1.4),Y=c(3.6,-1)))),values=c(0.88,3.54))
 
-  # CTS : list of continuous-time series
+# CSTS : list of Continuous-SpatioTemporal Series
 
-CTS <- setClass("CTS",
+CSTS <- setClass("CSTS",
 		      contains="list",
 		      validity = function(object){
-		      if (!all(lapply(object,class)%in%c("numValCTS","intValCTS","logicValCTS","charValCTS"))) stop("trying to contrust a TimeSeries object with a list conaining objects other than numericTimeSerie, or discreteTimeSerie, or characterTimeSerie or integerTimeSerie")
+		       # if (!all(lapply(object,class)%in%c("numCSTS","intCSTS","logicCSTS","charCSTS"))) stop("trying to contrust a TimeSeries object with a list conaining objects other than numCSTS, or intCSTS, or charCSTS or logicCSTS")
+		        if (!all(sapply(lapply(object,function(x){colnames(x@coord)}),FUN=identical,colnames(object[[1]]@coord)))) stop("the coordinates colnames differ among time series in CSTS object contruction")
 		      }
 )
 
-CTS <- function(X){
+CSTS <- function(X,name=NA){
+  #note if X is a matrix, col 1 contains values, col 2 times, and col 3.. coordinates
+  #     if X is a list, fisrt element contains values, second elt contains times, and other elements coordinates
+  if (any(is.null(names(X)))) stop("requires names for the list as variables names in CSTS constructor")
   if (class(X)== "list") {
     for (i in 1:length(X)) {
-      if (!(class(X[[i]])%in%c("numValCTS","intValCTS","logicValCTS","charValCTS"))) {
-	X[[i]]= switch(class(X[[i]]),
-		matrix=new("numericTimeSerie",values=x[,1],times=x[,2]),
-		data.frame= switch(class(X[[i]][,1]),
-				   character= new("charValCTS",values=X[[i]][,1],times=X[[i]][,2]),
-				   numeric= new("numValCTS",values=X[[i]][,1],times=X[[i]][,2]),
-				   integer= new("intValCTS",values=X[[i]][,1],times=X[[i]][,2]),
-				   logical= new("logicValCTS",values=X[[i]][,1],times=X[[i]][,2]))
-		)
+      if (!(class(X[[i]])%in%c("numCSTS","intCSTS","logicCSTS","charCSTS"))) {
+        X[[i]] = switch(class(X[[i]]),
+                        matrix = new("numCSTS",new("cSTF",times=X[i,2],coord=X[i,3:ncol(X)]),values=X[i,1]),
+                        list = switch(class(X[[i]][[1]]),
+                                      character= new("charCSTS",new("cSTF",times=X[[i]][[2]],coord=(X[[i]][[3]])),values=X[[i]][[1]]),
+                                      numeric= new("numCSTS",new("cSTF",times=X[[i]][[2]],coord=(X[[i]][[3]])),values=X[[i]][[1]]),
+                                      integer=new("intCSTS",new("cSTF",times=X[[i]][[2]],coord=(X[[i]][[3]])),values=X[[i]][[1]]),
+                                      logical= new("logicCSTS",new("cSTF",times=X[[i]][[2]],coord=(X[[i]][[3]])),values=X[[i]][[1]]))
+                        )
       }
-    }   				   				   
-  new("TimeSeries",X)
+    }
+    new("CSTS",X)
   }
 else stop("needs a list as argument")
 }
 
+
+c(as.POSIXct("2018-10-12 20:45:12"),as.POSIXct("2018-10-11 20:45:12"))
+
+x=object=exCSTS <- CSTS(list(landtype=list(values=c("farm","road","wood",'wood'),times=c(as.POSIXct("2018-10-13 14:28:22",tz="America/Bogota"),as.POSIXct("2018-10-12 15:28:24",tz="America/Bogota"),as.POSIXct("2018-10-10 15:28:24",tz="America/Bogota"),as.POSIXct("2018-10-13 14:25:22",tz="America/Bogota")),coord=as.matrix(data.frame(x1=c(1,2,.4,.5),x2=c(2,3,3.4,.5)))),
+                    tmean=list(c(10,15,7,8),c(as.POSIXct("2018-10-13 14:28:22",tz="America/Bogota"),as.POSIXct("2018-10-12 15:28:24",tz="America/Bogota"),as.POSIXct("2018-10-10 15:28:24",tz="America/Bogota"),as.POSIXct("2018-10-13 14:25:22",tz="America/Bogota")),as.matrix(data.frame(x1=c(1,2,.4,.5),x2=c(2,3,3.4,.5)))),
+                    present=list(c(T,F,F,T),c(as.POSIXct("2018-10-13 14:28:22",tz="America/Bogota"),as.POSIXct("2018-10-12 15:28:24",tz="America/Bogota"),as.POSIXct("2018-10-10 15:28:24",tz="America/Bogota"),as.POSIXct("2018-10-13 14:25:22",tz="America/Bogota")),as.matrix(data.frame(x1=c(1,2,.4,.5),x2=c(2,3,3.4,.5))))))
+
+class(exCSTS)
+
+min(exCSTS[[1]]@times)
+
+setMethod(min,
+          signature="CSTS",
+          definition=function(x){
+            min(as.POSIXct(unlist((lapply(x,FUN=function(xi) as.character(min(xi@times)))))))
+          })
+min(exCSTS)
+setMethod(max,
+          signature="CSTS",
+          definition=function(x){
+            max(as.POSIXct(unlist((lapply(x,FUN=function(xi) as.character(max(xi@times)))))))
+          })
+max(exCSTS)
+setMethod("as.data.frame",
+          signature="CSTS",
+          definition=function(x){
+            df<-as.data.frame(lapply(x,FUN=function(x) x@values))
+            vapply(x, function, FUN.VALUE = type, ...)
+          })
+
+setMethod(discretize,
+          signature="CSTS",
+          definition = function(x,unit="day",tZ=Sys.timezone()){
+            start = min(x)
+            finish= max(x)
+            starting=as.POSIXct(switch(unit,
+                            second = start,
+                            minute= as.Date(start,tz=tZ)+period(hour(start),"hours")+period(minute(start),"minute"),
+                            hour= as.Date(start,tz=tZ)+period(hour(start,tz=tZ),"hours"),
+                            day=as.Date(start,tz=tZ)+period(1,"hours")-period(1,"hour"),
+                            month=as.Date(start,tz=tZ)-day(start,tz=tZ)+period(1,'days'),
+                            year=((as.Date(start,tz=tZ)-day(start,tz=tZ)+period(1,"days"))-period(month(start)-1,"month"))
+                         ),tz=tZ)
+            finished=as.POSIXct(switch(unit,
+                            second=finish+period(1,"second"),
+                            minute=as.Date(finish)+period(hour(finish),"hours")+period(minute(finish)+1,"minute"),
+                            hour=as.Date(finish)+period(hour(finish)+1,"hours"),
+                            day=as.Date(finish)+1+period(1,"hours")-period(1,"hours"),
+                            month=period(1,"month")+as.Date(finish)-day(finish)+period(1,'days'),
+                            year=period(1,"year")+(as.Date(finish)-day(finish)+period(1,"days"))-period(month(finish)-1,"month")
+                            ),tz=tZ)
+            len <- as.integer(as.period(finished-starting,unit)/period(1,unit))
+            tf <- new("timeFrame",starting=starting,finished=as.POSIXct(finished),period=period(1,unit), length=len)
+            cutf <- cut(tf)
+            listOflist <- list()
+            listOflist<-lapply(cutf[-length(cutf)],function(x) {x=list(x);names(x)="times";x})
+            dataF <- as.data.frame(matrix(NA,ncol=length(x),nrow=len))
+            colnames(dataF) <- names(x)
+            for (vari in names(x)) {
+              listOflist[[vari]]<-NULL
+              for (element in 1:length(x[[vari]])){
+                listOflist[[sum(x[[vari]]@times[element]>cutf)]][[vari]]<-append(listOflist[[sum(x[[vari]]@times[element]>cutf)]][[vari]],x[[vari]]@values[element])
+                   }
+            }
+            columnsOfDataFrame <- NULL
+              for (vari in names(x)){
+                columnsOfDataFrame <- append(columnsOfDataFrame,switch(class(x[[vari]]),
+                     intCSTS=c(paste(vari,".n",sep=""),paste(vari,".rep",sep="")),
+                     charCSTS=paste(vari,levels(as.factor(x[[vari]]@values)),sep="."),
+                     logicCSTS=c(paste(vari,".n",sep=""),paste(vari,".k",sep="")),
+                     numCSTS=vari))
+                }
+            dataF <- data.frame(matrix("",ncol=length(columnsOfDataFrame)))
+            colnames(dataF)<- columnsOfDataFrame
+            for (time in cutf){
+              {
+                for(for vari in names(x)){
+                  for (col in grep(vari,columnsOfDataFrame,value=TRUE)){
+                    
+                  }
+                }
+                switch(class(x[[vari]]),
+                       intCSTS=,
+                       charCSTS={for (state in levels(x[[vari]]@values))
+                         
+                         },
+                       ){
+                  
+                }
+                for (time in cutf){
+                  dataF[dataF$times==time,]
+                }
+              }
+              dataF[,vari]
+            }
+            for (col in colnames(dataF))
+            for (elt in 1:length(listOfList)){
+              df
+            }
+          }
+
+              
+              referenceTime <- referenceTime - start
+            {(referenceTime-start)/period referenceTime <- referenceTime }referenceTime <- referenceTime - start
+            timepoints  <- 
+            if (referenceTime>=start) starting=referenceTime-ceiling(abs(referenceTime-start))
+            if (referenceTime<start) starting=referenceTime+floor(abs(referenceTime-start))
+            finished=starting+ceiling(finish-start)
+            
+          })
+
+x=exCSTS
+
+
+# discetre-time series #
+#######################
+
 library(lubridate)
 
-# disctre-time series
+timeFrame <- setClass("timeFrame",
+                          slots=c(period="Period", length="integer"),
+                          prototype=prototype(period=period(num = 1,unit = "months"),length=as.integer(6)))
 
-discreteTimeFrame <- setClass("discreteTimeFrame",
-                              slots = c(start=c("POSIXct"),end=c("POSIXct"),periodUnit="character",periodLength="integer", tfLength="integer"),
-                              #					validity = function(object){
-                              #					if (as.integer((object@end-object@start)/object@period)!=(object@length+1)) stop("incompatibility between end, start and period")
-                              #					}
-)
-discreteTimeFrame <- setClass("discreteTimeFrame",
-                              slots = c(starts=c("POSIXt"),lasts=c("POSIXct"),period="Period", length="integer"),
-                              prototype = prototype("discreteTimeFrame",starts=ymd_hms("2011-06-10-08-06-35"),lasts=ymd_hms("2011-06-10-08-06-40"),period=period(6,"seconds"),length=as.integer(6)),
-                              validity = function(object){
-                                if ((object@starts)+object@period*(object@length)!=(object@lasts)) stop("incompatibility between starts, lasts and period values")
-                              }
-)
-new("discreteTimeFrame",start=ymd_hms("2011-06-10-08-06-35"),end=ymd_hms("2011-06-10-08-06-40"),periodUnit="seconds",periodLength=as.integer(6),tfLength=as.integer(6))
 
+refTimeFrame <- setClass("refTimeFrame",
+                      contains="timeFrame",
+                      slots = c(starting=c("POSIXct"),finished=c("POSIXct")),
+                      prototype = prototype(new("timeFrame",period=period(num = 1,units="seconds"),length=as.integer(6)),starting=as.POSIXct("2011-06-10 08:06:35"),finished=as.POSIXct("2011-06-10 08:06:41")),
+                      validity = function(object){
+                        if ((object@starting)+object@period*(object@length)!=object@finished) {
+                          stop(paste("incompatibility between starting, finished and period values","\n (object@starting)+object@period*(object@length) =",(object@starting)+object@period*(object@length),"\n object@finished =",object@finished))
+                          }
+                        }
+                      )
+
+object=tf6s=new("refTimeFrame",starting=as.POSIXct("2011-06-10 08:06:35"),finished=as.POSIXct("2011-06-10 08:06:41"),period=period(num = 1,units="seconds"),length=as.integer(6))
+object=tf6s=new("refTimeFrame",starting=as.POSIXct("2012-06-10 08:06:35"),finished=as.POSIXct("2017-06-10 08:06:35"),period=period(num = 1,units="years"),length=as.integer(5))
+object=tf6y=new("refTimeFrame",starting=as.POSIXct("2011-01-01"),finished=as.POSIXct("2017-01-01"),period=period(num = 1,units="years"),length=as.integer(6))
+
+object=new("refTimeFrame",starting=ymd_hms("2011-06-10-08-06-35"),finished=ymd_hms("2011-06-19-08-06-35"),period=period(1,"day"),length=as.integer(9))
 
 setMethod(length,
-  signature = "discreteTimeFrame",
+  signature = "timeFrame",
   definition = function(x){x@length})
+length(object)
 
-dtf<-new("discreteTimeFrame",starts=ymd_hms("2011-06-10-08-06-35"),lasts=ymd_hms("2011-06-10-08-06-41"),period=period(1,"seconds"),length=as.integer(6))
+setMethod(range,
+          signature = "refTimeFrame",
+          definition = function(x){c(starting=x@starting,finished=x@finished)})
+range(object)
+
+setMethod("cut",
+          signature="refTimeFrame",
+          definition=function(x){
+            cuts <- range(x)[1]
+            for (i in 1:length(x)){
+              cuts = append(cuts,cuts[1]+x@period*i)
+            }
+          cuts})
+cut(object)
+
+# discrete time series DTS
+setwd("/home/dupas/PlaNet/")
+data <- read.table("TrainingDataSet_Maize.txt")
+head(data)
+
+coln <- colnames(data)
+coln <- levels(as.factor(unlist(lapply(strsplit(colnames(data),"\\_"),function(x){x[[1]]}))))
+?strsplit  
+  
+dataList <- setClass("dataList",
+                     contains="list",
+                     validity = function(object){
+                       if (!all(lapply(object,class)=="data.frame")) stop("dataList constructor receceived something else than a list of data frame")
+                       if (!all(lapply(object,colnames)==colnames(object)[[1]])) stop("colnames of data.frame in dataList should be identicals")
+                     })
+
+dataList <- function(x,bycol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD")){
+  if (class(x)=="list") new("dataList",x)
+  if (class(x)=="data.frame") if (bycol){
+    dataL=list()
+    colnlist = strsplit(colnames(x),sep)
+    coln <- levels(as.factor(unlist(lapply(strsplit(colnames(x),sep),function(x){x[[1]]}))))
+    coln <- coln[-which(coln==listColTag)]
+    lastElt = lapply(colnlist,FUN=function(x) x[[length(x)]])
+    options(warn=-1)
+    times=as.numeric(levels(as.factor(unlist(lastElt[which(!is.na(as.numeric(lastElt)))]))))
+    options(warn=0)
+    times=times[order(times)]
+    for (tag in 1:nrow(x)){
+      df0=x[tag,]
+      dfn=data.frame(matrix(ncol=length(coln),nrow=length(times),dimnames=list(times,coln)))
+      for (i in times){
+        for (j in coln){
+          if (paste(j,i,sep="_")%in%colnames(x)) dfn[i,j]=df0[,paste(j,i,sep="_")]
+          if (j%in%colnames(x)) dfn[i,j]=df0[i,j]
+        }
+      }
+      dataL[[paste(listColTag,x[tag,listColTag],sep="",collapse="_")]]=dfn
+    }
+    new("dataList",dataL)
+  }
+}
+
+dl <- dataList(data)
+
+setMethod("variable.names",
+          signature="dataList",
+          definition=function(object){colnames(object[[1]])})
+
+setMethod("nrow",
+          signature="dataList",
+          definition=function(x) nrow(x[[1]]))
+
+setMethod("dim",          
+          signature="dataList",
+          definition=function(x) dim(x[[1]]))
+
+variable.names(dl)
+nrow(dl)
+dim(dl)
+
+df_TimeFramed <-new("refTimeFrame",starting=as.POSIXct("2018-01-01"),finished=as.POSIXct("2018-11-01"),period=as.period(9.5,"hours")+as.period(30,"days"),length=as.integer(10))
+
+DTS <- setClass("DTS",
+                contains = "refTimeFrame",
+                slots=c(variables="character",data="dataList"),
+                validity = function(object){
+                  if (!all(object@variables%in%variable.names(object@data))) stop("not all variables slot are in data slot colnames")
+                  if (length(object)!=nrow(object@data)) stop("timeFrame and number of row in data are different")
+                  }
+                )
+
+object=dTS <- new("DTS",tf6y,variables=c("X1","X2"),data=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6)))
+
+listDTS <- setClass("listDTS",
+                    contains="list",
+                    )
 
 
-indicatorTimeSeries <- setClass("indicatorTimeSeries",
-                                slots=c(indicatorVariables="character",indicatorData="data.frame",times="discreteTimeFrame"),
-                                validity = function(object){
-                                  if (!all(object@indicatorVariables%in%colnames(object@indicatorData))) stop("not all indicatorVariables slot are in indicatorData slot colnames")
-                                  if (length(object@times)!=nrow(object@indicatorData)) stop("discreteTimeFrame and number of row in indicatorData are different")
-                                  }
-                                )
+setMethod("names",
+          signature="DTS",
+          definition=function(x){
+            x@variables
+          })
 
-object=iTS <- new("indicatorTimeSeries",indicatorVariables=c("X1","X2"),indicatorData=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6)))
+setMethod("as.data.frame",
+          signature="DTS",
+          definition=function(x){
+            cbind(x@data,data.frame(times=cut(x)[-length(cut(x))]))
+          })
 
-ecosysTimeSeries <- setClass("ecosysTimeSeries",
-                             contains = "indicatorTimeSeries",
-                             slots=c(ecosysVariables="character",ecosysData="data.frame"),
-                             validity = function(object){
-                               if (!all(object@ecosysVariables%in%colnames(object@ecosysData))) stop("not all indicatorVariables slot are in ecosysData slot colnames")
-                               if (length(object@times)!=nrow(object@ecosysData)) stop("discreteTimeFrame and number of row in ecosysData are different")
-                               }
-                             )
+dfd=as.data.frame(dTS)
 
-setMethod("names",signature="indicatorTimeSeries",definition = function(x){x@indicatorVariables})
-setMethod("names",signature="ecosysTimeSeries",definition = function(x){append(x@indicatorVariables,x@ecosysVariables)})
+setMethod("names",signature="DTS",definition = function(x){x@variables})
 
-object=eTS <- new("ecosysTimeSeries",iTS,ecosysVariables=c("E1","E2"),ecosysData=data.frame(E1=c(2.45,3.5,4.,6.8,7.0,6.9),E2=as.integer(c(5,5,3,12,67,0))))
+names(dTS)
 
-## Ecosystem-Indicator model
+object=eTS <- new("DTS",tf6y,variables=c("E1","E2"),data=data.frame(E1=c(2.45,3.5,4.,6.8,7.0,6.9),E2=as.integer(c(5,5,3,12,67,0))))
+names(eTS)
+dfe=as.data.frame(eTS)
+
+setGeneric(name = "as.DTS",def = function(x,..){standardGeneric("as.DTS")})
+
+setMethod("as.DTS",
+          signature="data.frame",
+          definition=function(x,per=NULL,option="bycol"){
+            t<-x[,which(lapply(as.list(x),FUN = function(x) class(x)[1])=="POSIXct")]
+            df<- x[,-which(lapply(as.list(x),FUN = function(x) class(x)[1])=="POSIXct")]
+            starting=min(t)
+            t=t[order(t)]
+            if(is.null(per)) per = lapply(1:(length(t)-1),function(i){t[i+1]-t[i]})[[which(unlist(lapply(1:(length(t)-1),function(i){t[i+1]-t[i]})) == min(unlist(lapply(1:(length(t)-1),function(i){t[i+1]-t[i]}))))[1]]]
+            len = as.integer((max(t)-starting)/as.numeric((per))+1)
+            if (per%in%c(difftime("2017-01-01","2016-01-01"),difftime("2018-01-01","2017-01-01"))) per=period(1,"year") else per = as.period(per,unit=unit)
+            finished=max(t)+per
+            new("DTS",new("timeFrame",starting=starting,finished=finished,period=per,length=len),data=df)
+          }
+          )
+
+
+
+## Ecosystem model structure
+# varFunction a character matrix linking each variable of the ecosystem containing XP functions
+# 
+
+extendedMatrix <- setClass("extendedMatrix",
+                           slots=list)
+
+# XPfun are all the functions with parameters names "x" and "p" where x is a variable , p is a parameter 
+
+xpFun <- setClass("xpFun",
+                  contains="function",
+                  validity = function(object){if (any(formalArgs(object)!=c("x","p"))) stop("XPFunction was created without 'p' and 'x' as arguments")}
+)
+
+proP <- function(x=0,p=0){x*p}
+propXP <- new("xpFun",proP(x=0,p=c(p1=0,p2=1)))
+propXP(2,3)
+
+pnorM <- new("xpFun",function(x=0,p=c(meaN=2,sigmA=1)){pnorm(x,p[1],p[2])})
+
+pnorM(x=3,p=c(neaN=3,sigmA=4))
+
+# varFunctions is a matrix of functions for the ecosystem graph
+varFunctions <- setClass("varFunctions",
+                                  contains="list",
+                                  validity=function(object){
+                                    if (any(lapply(object,class)!="list")) stop("varFunctions should be a list of list")
+                                    if (any(lapply(object,length)!=length(object))) stop("varFunctions should be squared")
+                                    for (subobject in object) {if (any(lapply(subobject,class)!="xpFun")) stop("varFunctions should be squared list of xpFUN")}
+                                  })
+
+vF<-new("varFunctions",list(list(new("xpFun",function(x,p){p*x}),new("xpFun",function(x,p){p[1]*x+p[2]*x^2})),list(new("xpFun",function(x,p){0}),new("xpFun",function(x,p){1}))))
+object=vF
+vF
+
+setMethod("dim",
+          signature = "varFunctions",
+          definition = function(x){c(length(x[[1]]),length(x))}
+          )
+dim(vF)
+
+logimat <- setClass("logimat",
+                    contains="matrix",
+                    validity=function(object){if (any(lapply(object,class)!="logical")) stop("logimat lentgh should equal its @dim product")}
+)
+
+object=G <- new("logimat",matrix(c(T,F,F,T),nr=2))
+
+paramVecMat <- setClass("paramVecMat",
+                    contains="list",
+                    validity=function(object){
+                      if (any(lapply(object,class)!="list")) stop("@p should be a list of list")
+                      if (any(lapply(object,length)!=length(object))) stop("@p should be squared")
+                      for (subobject in object) {if (any(lapply(subobject,class)!="numeric")) stop("@p should be squared list of numeric vectors")}
+                    }
+)
+
+setMethod("[","paramVecMat",
+          definition = function(x, i, j, ..., drop) {
+  x[[i]][[j]]
+})
+
+setMethod("dim","paramVecMat",
+          definition = function(x) {
+            c(length(x),length(x[[1]]))
+          })
+
+p=new("paramVecMat",list(list(c(1,2),0),list(0,c(.5,4))))
+p[1,2]
+
+dim(p)
+
+r1unif <- function(min=0,max=1){runif(1,mean,sd)}
+r1norm <- function(mean=0,sd=1){rnorm(1,mean,sd)}
+
+prior <- setClass("prior",
+                  contains="function",
+                  slots=c(hyperParam="numeric"),
+                  validity = function(object){if (any(names(formals(object))!=names(object@hyperParam))) stop("formals of prior and hyperParam slot names are different")}
+)
+
+priorList <- setClass("priorList",
+                      contains="list",
+                      validity = function(object){if (any(lapply(object,class)!="prior")) stop("priorList should be a list of prior objects")}
+                      )
+
+object=new("prior",r1unif,hyperparam=c(min=0,max=1))
+object=new('priorList',list(a=object,b=new("prior",r1norm,hyperparam=c(mean=0,sd=1))))
+names(object) <- c("b","c")
+names(object)
+
+bayesParam <- setClass("bayesParam",
+                       slots=c(fun="xpFun",par="numeric",prior="priorList",ecoModel="ecoModel"),
+                       validity = funciton(object){
+                         if (any(names(object@par)!=names(object@prior))) stop("names of parameter vector and prior list do not coincide")
+                         if (any(names(object@par)!=names(object@prior)) stop("names of parameter vector and prior list do not coincide")
+                       })
+
+                       
+
+# varFunctions is a matrix of functions with slots 
+# @p : parameter vector matrix (list of list) and 
+# @Gamma : neighborhood matrix, presented as a 
+varFunctionParam <- setClass("varFunctionParam",
+                       contains="varFunctions",
+                       slot=c(p="list",Gamma="logimat"),
+                       validity=function(object){
+                         if (any(lapply(object@p,class)!="list")) stop("@p should be a list of list")
+                         if (any(lapply(object@p,length)!=length(object@p))) stop("@p should be squared")
+                         if (any(dim(object@Gamma)!=dim(object))) stop ("neighborhood matrix and function matrix should be of the same size")
+                         if (any(dim(object)!=c(length(object@p),length(object@p)))) stop("dimension of functions lists and dimentions of parameters lists cannot differ")
+                         if (any(dim(object)!=c(length(object@p),length(object@p)))) stop("dimension of functions lists and dimentions of parameters lists cannot differ")
+                         for (subobject in object@p) {if (any(lapply(subobject,class)!="numeric")) stop("@p should be squared list of numeric vectors")}
+                         })
+
+object=   new("varFunctionParam",vF, p=new("paramVecMat",list(list(c(1,2),0),list(0,c(.5,4)))),Gamma=as.logical(c(1,0,0,1))) 
+
+
+timeFunctions <- setClass("timeFunctions",
+                          contains="varFunctions")
+timeFunctionParam <- setClass("timeFunctionParam",
+                          contains="varFunctionParam")
+
+object=   new("timeFunctions",list(list(new("xpFun",function(x,p){p*x}),new("xpFun",function(x,p){p[1]*x+p[2]*x^2})),list(new("xpFun",function(x,p){0}),new("xpFun",function(x,p){1}))))
+object=   new("timeFunctionParameters",list(list(c(1,2),c(.5,4)),list(0,0))) 
+
+#
+
+ecoModel <- setClass("ecoModel",
+                     contains=c("ecosysTimeSeries"),
+                     slots=c(timeFunctions="list",timeModel="list",varFunctions="list", varModel="list",parameters="list"),
+                     validity = function(object){
+                       if (!all(levels(as.factor(unlist(object@parents)))%in%names(object))) stop("some parents in ecoModel are not in the ecosystem variables")
+                       if (!all(levels(as.factor(unlist(object@parents)))%in%names(object))) stop("some parents in ecoModel are not in the ecosystem variables")
+                       if (any(lapply(object@parents,length)!=(lapply(object@timeModel,length)))) stop("some parents in ecoModel are not in the ecosystem variables")
+                     }
+                       )
+                     
+                     
+                     
+
+3DGamma <- setClass("3DGamma",
+                    contains="array",
+                    validity=function(object){
+                      if (length(dim(object)!=3)) stop("3DGamma should be a 3D array")
+                    })
+loG <- function(x=0,p=0)
+linear <- new("XPFun",function(x=0,p=0){x*p})
+
+varGammaFunctions <- setClass("varGammaFunctions",
+                              slots = "list",
+                              validity = function(object){
+                                if (any(lapply(object,class)!="function")) stop("varGammaFunction is a list of functions, constructor received something else in the list") 
+                              }
+                              )
+
+
+
+ecoGammaFunction <- setClassGammaFunctions
+
+Gamma <- setClass("Gamma",
+                  slots=c(GammaFunctions="function")
+
+timeModel <- setClass("timeModel",
+                      slots=c(type="character",parameters="numeric"))
+
+data.frame[i,gamma(i)]
+
+variableModel <- setClass("variableModel",
+                          slots=c(parents="character",time="list",fun="list")
+
+ecoModelSample <- setClass("ecoModelSample",
+                           contains="ecoModel",
+                           slots=c(paramValues="numeric"))
+
+
+
+setClass("timeModel",
+         contains="list",
+         validity = function(object){
+           lapply(object[["variable"]]
+         })
+
+model <- setClass("model",
+                  slots=c(variables="character",parents="character",parameters="list", timeModel = "timeModel", residualDistribution ="function"),
+                  validity = 
+                  )
+
 
 timeLinks <- setClass("timeLinks",
                       contains="list",
-                      validity=function(object){(all(lapply(object,class)=="formula"))})
+                      validity=function(object){(all(lapply(object,class)=="model"))})
 
 a=c(as.formula(y~ a*x),as.formula(y~1),as.formula(y[1]~x[1]))
 names(a)
@@ -185,14 +633,6 @@ prior <- setClass("prior",
                   contains = "list",
                   validity = function(object){})
 
-ecoModel <- setClass("ecoModel",
-                     contains=c("ecosysTimeSeries"),
-                     slots=c(varLinks="varLinks",timeLinks="timeLinks",parameters="character",prior="prior",posterior="posterior"),
-                     )
-
-ecoModelSample <- setClass("ecoModelSample",
-                           contains="ecoModel",
-                           slots=c(paramValues="numeric"))
 
 ecoModelSimul <- setClass("ecoModelSimul",
                           contains="ecoModelSample",
