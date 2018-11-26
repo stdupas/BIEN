@@ -219,7 +219,7 @@ setMethod(discretize,
             colnames(dataF)<- columnsOfDataFrame
             for (time in cutf){
               {
-                for(for vari in names(x)){
+                for(vari in names(x)){
                   for (col in grep(vari,columnsOfDataFrame,value=TRUE)){
                     
                   }
@@ -320,13 +320,17 @@ dataList <- setClass("dataList",
                        if (!all(lapply(object,colnames)==colnames(object)[[1]])) stop("colnames of data.frame in dataList should be identicals")
                      })
 
-dataList <- function(x,bycol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD")){
-  if (class(x)=="list") new("dataList",x)
-  if (class(x)=="data.frame") if (bycol){
+dataList <- function(x,timeByCol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD","IRR"),timeByRowNColInfo=NULL,connectivity=list(type="temporal",tempVar="yearHarvest",labelVar="NUMD",connectVar="yieldAnomaly",connectRow=9)){
+  # timeByRowNcolInfo = list(cols="yearHarvest",colsBy="year",rows="_x",rowsBy="month")
+  if (class(x)=="list") return(new("dataList",x))
+  if ((class(x)=="data.frame")&(!bycol)) return(new("dataList",list(x)))
+  if ((class(x)=="data.frame")&(!is.null(timeByRowNColInfo))){
+    
+  }
+  if ((class(x)=="data.frame")&(bycol)){
     dataL=list()
     colnlist = strsplit(colnames(x),sep)
     coln <- levels(as.factor(unlist(lapply(strsplit(colnames(x),sep),function(x){x[[1]]}))))
-    coln <- coln[-which(coln==listColTag)]
     lastElt = lapply(colnlist,FUN=function(x) x[[length(x)]])
     options(warn=-1)
     times=as.numeric(levels(as.factor(unlist(lastElt[which(!is.na(as.numeric(lastElt)))]))))
@@ -335,19 +339,36 @@ dataList <- function(x,bycol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD")){
     for (tag in 1:nrow(x)){
       df0=x[tag,]
       dfn=data.frame(matrix(ncol=length(coln),nrow=length(times),dimnames=list(times,coln)))
+      dfn[,coln[which(coln%in%listColTag)]] <- df0[,coln[which(coln%in%listColTag)]]
       for (i in times){
-        for (j in coln){
+        for (j in coln[!(coln%in%listColTag)]){
           if (paste(j,i,sep="_")%in%colnames(x)) dfn[i,j]=df0[,paste(j,i,sep="_")]
           if (j%in%colnames(x)) dfn[i,j]=df0[i,j]
         }
       }
       dataL[[paste(listColTag,x[tag,listColTag],sep="",collapse="_")]]=dfn
     }
-    new("dataList",dataL)
+    if (connectivity$typ="temporal"){
+      for (i in 1:length(dataL)){
+        previousValue = unlist(lapply(dataL,function(dal){
+          if ((dal[1,connectivity$tempVar] == dataL[[i]][1,connectivity$tempVar]-1)&(dal[1,connectivity$labelVar] == dataL[[i]][1,connectivity$labelVar])) dal[connectivity$connectRow,connectivity$connectVar] else NULL}))
+        if (is.null(previousValue)) dataL[[i]][,paste("past",connectivity$connectVar,sep="_")]<-NA else dataL[[i]][,paste("past",connectivity$connectVar,sep="_")]<-previousValue
+        fivePreviousValue=NULL
+        ePreviousValue=append(fivePreviousValue,pv) 
+        if (is.null(previousValue)) dataL[[i]][,paste("past",connectivity$connectVar,sep="_")]<-NA else dataL[[i]][,paste("past",connectivity$connectVar,sep="_")]<-previousValue
+        }
+      }
+    }
+    return(new("dataList",dataL))
   }
 }
 
-dl <- dataList(data)
+dl <- dataList(data,timeByCol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD","IRR"))
+save(dl,file = "data.list.RData")
+
+x=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6))
+bycol=FALSE
+obj=dataList(x=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6)),bycol=FALSE)
 
 setMethod("variable.names",
           signature="dataList",
@@ -364,8 +385,9 @@ setMethod("dim",
 variable.names(dl)
 nrow(dl)
 dim(dl)
+length(dl)
 
-df_TimeFramed <-new("refTimeFrame",starting=as.POSIXct("2018-01-01"),finished=as.POSIXct("2018-11-01"),period=as.period(9.5,"hours")+as.period(30,"days"),length=as.integer(10))
+dl_TimeFramed <-new("refTimeFrame",starting=as.POSIXct("2018-01-01"),finished=as.POSIXct("2018-11-01"),period=period(36,"minutes")+period(9,"hours")+period(30,"days"),length=as.integer(10))
 
 DTS <- setClass("DTS",
                 contains = "refTimeFrame",
@@ -376,7 +398,9 @@ DTS <- setClass("DTS",
                   }
                 )
 
+object=dTS <- new("DTS",tf6y,variables=c("X1","X2"),data=dataList(data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6))))
 object=dTS <- new("DTS",tf6y,variables=c("X1","X2"),data=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6)))
+object=dTS <- new("DTS",dl_TimeFramed,variables=variable.names(dl),data=dl)
 
 listDTS <- setClass("listDTS",
                     contains="list",
