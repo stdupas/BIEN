@@ -1,5 +1,19 @@
 ## PlaNet
 
+## Proof of concept
+
+H=c("plant","pathogen","pesticide","humidity","temperature")
+I=c("plantI","pathogenI","pesticideI","humidityI","temperatureI")
+linkH = t(matrix(as.logical(c(1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0)),nrow=5,ncol=5))
+library(raster)
+plot(as.raster(linkH))
+linkTime = t(matrix(as.logical(c(1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0)),nrow=5,ncol=5))
+
+Model <- function(param,linkH,linkHI,paramx0){
+  
+}
+
+
 # Simulate climate data
 Njours=900
 nbjour_mois <- c(31,28,31,30,31,30,31,31,30,31,30,31)
