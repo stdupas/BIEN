@@ -1,13 +1,94 @@
 ## PlaNet
 
 ## Proof of concept
+# ecolink
+#     T	H	Pa	Pl	Pe
+# T			x	x
+# H			x	x
+# Pa			x	x	x
+# Pl			x	x
+# Pe			x
 
-H=c("plant","pathogen","pesticide","humidity","temperature")
-I=c("plantI","pathogenI","pesticideI","humidityI","temperatureI")
-linkH = t(matrix(as.logical(c(1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0)),nrow=5,ncol=5))
+ecoVar=c("T","Pm","Pa","Pl","Pe") 
+indicVar=c("T","Pm","Pa","Pl","Pe")
+
 library(raster)
-plot(as.raster(linkH))
-linkTime = t(matrix(as.logical(c(1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0)),nrow=5,ncol=5))
+
+ecoLinkTime = t(matrix(as.logical(c(1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0)),nrow=5,ncol=5))
+ecoLink <- matrix(c(0,0,1,1,0,
+                 0,0,1,1,0,
+                 0,0,1,1,1,
+                 0,0,1,1,0,
+                 0,0,1,0,0),nrow=5, ncol =5)
+dimnames(ecoLink)=list(ecoVar,ecoVar)
+indicLink <- diag(5)
+dimnames(indicLink)=list(ecoVar,ecoVar)
+
+setClass("par",
+         contains="numeric"
+         )
+
+
+setClass("parDisFun",
+         contains = "function",
+         slots= c(lengthx="integer",lengthp="integer",xname="character",pnames="character"),
+#         prototype = list(function(x,p) rpois(x*p[[1]]),lengthx=1:1,lengthp=1:1,xname="T",pnames="TPa"),
+)
+
+# parDisFun are the parametrized distribution functions ]linking ecosystem variables 
+x=c(Pa=1.5,T=20,Pl=0.5,H=92,Pe=0)
+p=list(PaPa=c(rmax=10,K=20),TPa=c(min=15,max=30),HPa=c(min=90),PlPa=c(r=1),HPl=c(min=50),TPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=1.05,sd=.1),PePa=c(r=0.1),PaPe=c(thr=5))
+
+
+new("parDisFun",function(x,p) x["T"]*p["r"]
+               ,lengthx=1:1,lengthp=1:1,xname="T",pnames="r")
+
+Pafun <- new("parDisFun",function(x,p){
+  a=((!x["Pe"])+x["Pe"]*p[["PePa"]]["r"])*x["Pa"]*p[["PaPa"]]["rmax"]*((x["T"]>p[["TPa"]]["min"])*(x["T"]<p[["TPa"]]["max"]))*(x["T"]-p[["TPa"]]["min"])/(p[["TPa"]]["max"]-p[["TPa"]]["min"])*(x["H"]>p[["HPa"]]["min"])*(x["Pl"]*p[["PlPa"]])
+  rpois(1,a*(a<p[["PaPa"]]["K"])+p[["PaPa"]]["K"]*(a>=p[["PaPa"]]["K"]))
+                         },lengthx=5:5,lengthp=5:5,xname=c("T","H","Pa","Pl","Pe"),pnames=c("TPa","HPa","PaPa","PlPa","PePa")) 
+
+Plfun <- new("parDisFun",function(x,p){
+  a = ((x["T"]>p[["TPl"]]["min"])*0.1)+x["Pl"]*p[["PlPl"]]["r"]*(((x["H"]>p[["HPl"]])*(x["T"]>p[["TPl"]]["min"]))*
+      (1+(T-p[["TPl"]]["min"])/(p[["TPl"]]["max"]-p[["TPl"]]["min"]))*(x["T"]<p[["TPl"]]["max"]))+x["Pa"]*(p[["PaPl"]]["r"])
+  rnorm(1,x["Pl"]*(x["Pl"]>0),p[["PlPl"]]["sd"]*x["Pl"]*(x["Pl"]>0))
+  },lengthx=4:4,lengthp=4:4,xname=c("T","H","Pa","Pl"),pnames=c("TPl","HPl","PaPl","PlPl")) 
+
+Pefun <- new("parDisFun",function(x,p){
+  runif(1,0,x["Pa"])>p[["PaPe"]]},lengthx=1:1,lengthp=1:1,xname=c("Pa"),pnames=c("PaPe")
+)
+
+
+Pa=1.5;T=20;Pl=0.5;H=92;Pe=0
+p_PaPa=c(rmax=10,K=20);p_TPa=c(min=15,max=30);p_HPa=c(min=90);p_PlPa=c(r=1)
+p_HPl=c(min=50);p_TPl=c(min=10,max=30);p_PaPl=c(r=-0.03);p_PlPl=c(r=1.05,sd=.1)
+p_PePa=c(r=.1)
+# 
+a=((!Pe)+Pe*p_PePa)*Pa*p_PaPa[1]*((T>p_TPa[1])*(T<p_TPa[2]))*(T-p_TPa[1])/(p_TPa[2]-p_TPa[1])*(H>p_HPa[1])*(Pl*p_PlPa)
+Pa = rpois(1,a*(a<p_PaPa[2])+p_PaPa[2]*(a>=p_PaPa[2]))
+# Pa si pas de pesticide pas 
+Pl = ((T>p_TPl[1])*0.1)+Pl*p_PlPl[1]*(((H>p_HPl)*(T>p_TPl[1]))*
+      (1+(T-p_TPl[1])/(p_TPl[2]-p_TPl[1]))*(T<p_TPl[2]))+Pa*(p_PaPl)
+Pl = rnorm(1,Pl*(Pl>0),p_PlPl[2]*Pl*(Pl>0))
+Pe = (Pa>=p_PePa)
+Pe;Pa;Pl
+
+setClass("parFunList",
+         contains = "list",
+         prototype = list(new("parDisFun",function(x,p) rpois(1,p[[1]]),lengthx=1:1,lengthp=1:1,xname="T",pnames="TPa"),
+                          new("parDisFun",function(x,p) rnorm(1,p[["PlPl"]][1]+x[["Pl"]]*p[["PlPl"]][2],p[["PlPl"]][3]),lengthx=1:1,lengthp=1:1,xname=c("Pl"),pnames=c("PlPl"))
+                          ),
+         validity = function(object){
+           if (any(lapply(object,class)!="parDisFun")) stop("trying to create a funList where not all list components are parDisFun")}
+         )
+
+modl = new("parFunList",list(Plfun,Pafun,Pefun))
+         
+
+setClass("model",
+         slot=c("parFunList","ecoLink",""))
+
+
 
 Model <- function(param,linkH,linkHI,paramx0){
   
