@@ -1,3 +1,5 @@
+setwd("/home/dupas/PlaNet/")
+
 ## PlaNet
 
 ## Proof of concept
@@ -9,56 +11,262 @@
 # Pl			x	x
 # Pe			x
 
-ecoVar=c("T","Pm","Pa","Pl","Pe") 
-indicVar=c("T","Pm","Pa","Pl","Pe")
+# indlink
+#     iT	iH	iPa	iPl	iPe
+# iT	 x
+# iH			x
+# iPa			     x
+# iPl			        x
+# iPe			            x
+setwd("/home/dupas/PlaNet/")
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+indicVar=c("iT","iPr","iPa","iPl","iPe")
 
 library(raster)
 
-ecoLinkTime = t(matrix(as.logical(c(1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0)),nrow=5,ncol=5))
-ecoLink <- matrix(c(0,0,1,1,0,
-                 0,0,1,1,0,
-                 0,0,1,1,1,
-                 0,0,1,1,0,
-                 0,0,1,0,0),nrow=5, ncol =5)
+ecoLink <- t(matrix(as.logical(c(0,0,1,1,0,
+                  0,0,1,1,0,
+                  0,0,1,1,1,
+                  0,0,1,1,0,
+                  0,0,1,0,0)),nrow=5, ncol =5,dimnames=list(ecoVar,ecoVar)))
 dimnames(ecoLink)=list(ecoVar,ecoVar)
-indicLink <- diag(5)
+
+ecoLinkTime = t(matrix((c(0,0,1,1,0,
+                          0,0,2,1,0,
+                          0,0,1,1,1,
+                          0,0,1,1,0,
+                          0,0,0,0,0)),nrow=5,ncol=5,dimnames=list(ecoVar,ecoVar)))
+dimnames(ecoLinkTime)=list(ecoVar,ecoVar)
+
+indicLink <- as.logical(diag(5))
 dimnames(indicLink)=list(ecoVar,ecoVar)
 
-setClass("par",
-         contains="numeric"
+# data is a 3 dim array: dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time
+
+setClass("Data",
+         contains="array",
+         validity=function(object){
+           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
+         }
+         )
+#save(dataf,file = "yield.data.RData")
+
+load("yield.data.RData")
+dataf[,,1]
+load(file = "yield.data.RData")
+idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
+edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
+idata[,3,]<-NA
+idata[1,4,]<-0;idata[2,4,]<-0.01 # planting offucrs in february
+idata[1,4,]<-0;idata[2,4,]<-0.01 # planting offucrs in february
+idata[1:2,3,]<-0 # there is no parasite before planting
+idata[1:2,5,]<-0 # there is no pesticide before planting
+idata[,,1:3]
+edata=idata
+setClass("parDisFun",
+         contains = c("function"),
+         slots= c(lengthx="integer",lengthp="integer",xname="character",pnames="character"),
+#         prototype = list(function(x,p) rpois(x*p[[1]]),lengthx=1:1,lengthp=1:1,xname="Tx",pnames="TxPa"),
+)
+# parDisFun are the parametrized distribution functions ]linking ecosystem variables 
+
+setClass("parFunList",
+         contains = "list",
+         prototype = list(new("parDisFun",function(x,p) rpois(1,p[[1]]),lengthx=1:1,lengthp=1:1,xname="Tx",pnames="TxPa"),
+                          new("parDisFun",function(x,p) rnorm(1,p[["PlPl"]][1]+x[["Pl"]]*p[["PlPl"]][2],p[["PlPl"]][3]),lengthx=1:1,lengthp=1:1,xname=c("Pl"),pnames=c("PlPl"))
+         ),
+         validity = function(object){
+           if (any(lapply(object,class)!="parDisFun")) stop("trying to create a funList where not all list components are parDisFun")}
+)
+setClass("EcoModel",
+         contains="Data",
+         slots=c(funs="parFunList",ecoLink="matrix",delays="matrix")
+)
+
+setClass("prior",
+         contains = "function",
+         slots = c(priorParam="numeric")
+)
+
+pr1=new("prior",runif,priorParam=c(0,10))
+sample(pr1)
+
+pr1=new("prior",rnorm,priorParam=c(0,1))
+pr2=new("prior",rnorm,priorParam=c(10,5))
+
+setClass("prior",
+         contains = "list",
+         slot = "FUN",
+)
+
+
+setClass("priorList",
+         contains = "list",
+         validity = function(object) {
+           if (any(lapply(object,class)!="prior")) stop("priorList@funs did not contain list of prior")
+         }
+)
+
+priorP <- new("priorList",lapply(p,function(p_i) {new("prior",list(PrMin=p_i*0.66,PrMax=p_i*1.5),FUN=runif)}))
+priorP <- lapply(p,function(p_i) list(PrMin=p_i*0.66,PrMax=p_i*1.5,FUN=runif))
+mn=priorP$PaPl$PrMin
+mx=priorP$PaPl$PrMax
+priorP$PaPl$PrMin=mx
+priorP$PaPl$PrMax=mn
+
+names(priorP)=names(p)
+priorP$Papa
+x=priorP
+
+setMethod("sample",
+          signature = "list",
+          definition = function(x){
+            l <- lapply(x,function(x) x[[1]])
+            for (i in 1:length(l)){for (j in 1:length(l[[i]])) l[[i]][[j]]=x[[i]]$FUN(1,x[[i]][[1]][[j]],x[[i]][[2]][[j]]) }
+            l
+          })
+p1=sample(priorP)
+
+sample(pr2)
+
+x=c(Pa=1.5,Tx=20,Pl=0.5,Pr=2.5,Pe=0)
+p=list(PaPa=c(rmax=10,K=20),TxPa=c(min=15,max=30),PrPa=c(min=3),PlPa=c(r=1),PrPl=c(rperPr=.5),TxPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=2.5,K=2,sd=.1),PePa=c(r=0.1),PaPe=c(thr=1.5))
+p=new("param",p)
+
+
+Pafun <- new("parDisFun",function(x,p){
+    a=(x["Pa"]==0)+((!x["Pe"])+x["Pe"]*p[["PePa"]]["r"])*x["Pa"]*p[["PaPa"]]["rmax"]*((x["Tx"]>p[["TxPa"]]["min"])*(x["Tx"]<p[["TxPa"]]["max"]))*(x["Tx"]-p[["TxPa"]]["min"])/(p[["TxPa"]]["max"]-p[["TxPa"]]["min"])*(x["Pr"]>p[["PrPa"]]["min"])*(x["Pl"]*p[["PlPa"]])
+  rpois(1,a*(a<p[["PaPa"]]["K"])+p[["PaPa"]]["K"]*(a>=p[["PaPa"]]["K"]))
+                         },lengthx=as.integer(5),lengthp=as.integer(5),xname=c("Tx","Pr","Pa","Pl","Pe"),pnames=c("TxPa","PrPa","PaPa","PlPa","PePa")) 
+
+#
+#Plfun <- new("parDisFun",function(x,p){
+#  a = ((x["Tx"]>p[["TxPl"]]["min"])*0.1)+x["Pl"]*p[["PlPl"]]["r"]*(((x["Pr"]>p[["PrPl"]])*(x["Tx"]>p[["TxPl"]]["min"]))*
+#      (1+(T-p[["TxPl"]]["min"])/(p[["TxPl"]]["max"]-p[["TxPl"]]["min"]))*(x["Tx"]<p[["TxPl"]]["max"]))+x["Pa"]*(p[["PaPl"]]["r"])
+#rnorm(1,a,p[["PlPl"]]["sd"]*(a>0))
+Plfun <- new("parDisFun",function(x,p){
+  a=((x["Tx"]>p[["TxPl"]]["min"])*0.1)+x["Pl"]*p[["PlPl"]]["r"]*((((1+x["Pr"])*p[["PrPl"]])*(x["Tx"]>p[["TxPl"]]["min"]))*
+                                                                 (1+(T-p[["TxPl"]]["min"])/(p[["TxPl"]]["max"]-p[["TxPl"]]["min"]))*(x["Tx"]<p[["TxPl"]]["max"]))+x["Pa"]*(p[["PaPl"]]["r"])
+  if(a>p[["PlPl"]]["K"]) {a=2}
+  if(a<0) {a=0}
+  a
+},lengthx=as.integer(4),lengthp=as.integer(4),xname=c("Tx","Pr","Pa","Pl"),pnames=c("TxPl","PrPl","PaPl","PlPl")) 
+
+Pefun <- new("parDisFun",function(x,p){
+#  runif(1,0,x["Pa"])>p[["PaPe"]]},lengthx=1:1,lengthp=1:1,xname=c("Pa"),pnames=c("PaPe")
+  x["Pa"]>p[["PaPe"]]},lengthx=1:1,lengthp=1:1,xname=c("Pa"),pnames=c("PaPe")
+)
+
+iTfun <- new("parDisFun",function(x,p){
+  rnorm(1,x["iT"],p["sd"])
+},lengthx=1:1,lengthp=1:1,xname=c("Tx"),pnames=c("sd")) 
+
+modlfun =new("parFunList",list(Pe=Pefun,Pa=Pafun,Pl=Plfun))
+
+modl=new("EcoModel",edata,funs=modlfun,ecoLink=ecoLink,delays=ecoLinkTime)
+object=modl
+modl@funs
+names(modl@funs)
+dimnames(modl@.Data[,,1])
+p
+modl
+
+setClass("priorize",
+         signature = c("EcoModel","prior")
+         definition = function(object){
+           
+         }
+         )
+
+setGeneric(name="simulate",
+  def= function(object,p) { return(standardGeneric("simulate"))}
+)
+object=modl
+setClass("simulate",
+         signature = c(object="EcoModel",p="list"),
+         definition=function(object,p) object*unlist(p))
+
+
+
+setMethod("simulate",
+         signature=c(object="EcoModel",p="list"),
+         definition = function(object,p){
+           for (pop in 1:dim(object)[3]){
+             for (per in (max(object@delays[,names(object@funs)])+1):dim(object)[1]){
+               for (Funi in 1:length(object@funs)){
+                 Fun <- object@funs[[Funi]]
+                 nameFuni <- names(object@funs)[Funi]
+                 #        tmp=
+                 #        if (per>tmp) if (any(is.na(object@.Data[(per-tmp):(per-1),Fun@xname,pop]))) stop("data missing for simulation of data coordinates: per=",(per-tmp):(per-1)," dep.var=",Fun@xname," population=",pop) else {
+                 tmp2 <- unlist(lapply(which(object@ecoLink[,nameFuni]),FUN=function(i) object@.Data[per-object@delays[i,nameFuni],i,pop]))
+                 #          dati <- object@.Data[,,pop]
+                 object@.Data[per,nameFuni,pop] <- object@funs[[Funi]](tmp2,p)
+                 #print(paste(nameFuni,object@funs[[Funi]](tmp2,p)))
+               }
+             }
+           }
+         object
+         }
          )
 
 
-setClass("parDisFun",
-         contains = "function",
-         slots= c(lengthx="integer",lengthp="integer",xname="character",pnames="character"),
-#         prototype = list(function(x,p) rpois(x*p[[1]]),lengthx=1:1,lengthp=1:1,xname="T",pnames="TPa"),
-)
+setMethod("probablity",
+          signature=c(object="EcoModel",p=list),
+          for (pop in 1:dim(object)[3]){
+            for (per in (max(object@delays[,names(object@funs)])+1):dim(object)[1]){
+              for (Funi in 1:length(object@funs)){
+                Fun <- object@funs[[Funi]]
+                nameFuni <- names(object@funs)[Funi]
+                #        tmp=
+                #        if (per>tmp) if (any(is.na(object@.Data[(per-tmp):(per-1),Fun@xname,pop]))) stop("data missing for simulation of data coordinates: per=",(per-tmp):(per-1)," dep.var=",Fun@xname," population=",pop) else {
+                tmp2 <- unlist(lapply(which(object@ecoLink[,nameFuni]),FUN=function(i) object@.Data[per-object@delays[i,nameFuni],i,pop]))
+                #          dati <- object@.Data[,,pop]
+                object@.Data[per,nameFuni,pop] <- object@funs[[Funi]](tmp2,p)
+                #print(paste(nameFuni,object@funs[[Funi]](tmp2,p)))
+              }
+            }
+          }
+          )
 
-# parDisFun are the parametrized distribution functions ]linking ecosystem variables 
-x=c(Pa=1.5,T=20,Pl=0.5,H=92,Pe=0)
-p=list(PaPa=c(rmax=10,K=20),TPa=c(min=15,max=30),HPa=c(min=90),PlPa=c(r=1),HPl=c(min=50),TPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=1.05,sd=.1),PePa=c(r=0.1),PaPe=c(thr=5))
+object=modl
 
+sim <- list()
+plist=list()
 
-new("parDisFun",function(x,p) x["T"]*p["r"]
-               ,lengthx=1:1,lengthp=1:1,xname="T",pnames="r")
-
-Pafun <- new("parDisFun",function(x,p){
-  a=((!x["Pe"])+x["Pe"]*p[["PePa"]]["r"])*x["Pa"]*p[["PaPa"]]["rmax"]*((x["T"]>p[["TPa"]]["min"])*(x["T"]<p[["TPa"]]["max"]))*(x["T"]-p[["TPa"]]["min"])/(p[["TPa"]]["max"]-p[["TPa"]]["min"])*(x["H"]>p[["HPa"]]["min"])*(x["Pl"]*p[["PlPa"]])
-  rpois(1,a*(a<p[["PaPa"]]["K"])+p[["PaPa"]]["K"]*(a>=p[["PaPa"]]["K"]))
-                         },lengthx=5:5,lengthp=5:5,xname=c("T","H","Pa","Pl","Pe"),pnames=c("TPa","HPa","PaPa","PlPa","PePa")) 
-
-Plfun <- new("parDisFun",function(x,p){
-  a = ((x["T"]>p[["TPl"]]["min"])*0.1)+x["Pl"]*p[["PlPl"]]["r"]*(((x["H"]>p[["HPl"]])*(x["T"]>p[["TPl"]]["min"]))*
-      (1+(T-p[["TPl"]]["min"])/(p[["TPl"]]["max"]-p[["TPl"]]["min"]))*(x["T"]<p[["TPl"]]["max"]))+x["Pa"]*(p[["PaPl"]]["r"])
-  rnorm(1,x["Pl"]*(x["Pl"]>0),p[["PlPl"]]["sd"]*x["Pl"]*(x["Pl"]>0))
-  },lengthx=4:4,lengthp=4:4,xname=c("T","H","Pa","Pl"),pnames=c("TPl","HPl","PaPl","PlPl")) 
-
-Pefun <- new("parDisFun",function(x,p){
-  runif(1,0,x["Pa"])>p[["PaPe"]]},lengthx=1:1,lengthp=1:1,xname=c("Pa"),pnames=c("PaPe")
-)
-
-
+for (i in 2:100){
+  plist <- sample(priorP) 
+  sim=simulate(modl,plist)
+  plsim=list(p=plist,sim=sim)
+  save(plsim,file = paste("pAndEcosim",i,".RData",sep=""))
+  }
+plsim[[1]]
+simul <- function(object,p){
+  lapply
+  Fun <- object@funs[[Funi]]
+  nameFuni <- names(object@funs)[Funi]
+  #        tmp=
+  #        if (per>tmp) if (any(is.na(object@.Data[(per-tmp):(per-1),Fun@xname,pop]))) stop("data missing for simulation of data coordinates: per=",(per-tmp):(per-1)," dep.var=",Fun@xname," population=",pop) else {
+  tmp2 <- unlist(lapply(which(object@ecoLink[,nameFuni]),FUN=function(i) object@.Data[per-object@delays[i,nameFuni],i,pop]))
+  #          dati <- object@.Data[,,pop]
+  object@.Data[per,nameFuni,pop] <- object@funs[[Funi]](tmp2,p)
+  
+  
+simulate
+param
+class(p)
+a= array(1:24,dim=c(2,3,4),dimnames=list(1:2,1:3,1:4))
+for ()
+fun= object@funs[[1]]
+class(fun)
+a=NULL;i=0
+for (fun in object@funs){i=i+1
+  print(fun)
+  print(paste("LA CLASSE C'EST", class(fun)))
+  print(paste("Le name C'EST", names(fun)))
+}
+names(object@funs)
 Pa=1.5;T=20;Pl=0.5;H=92;Pe=0
 p_PaPa=c(rmax=10,K=20);p_TPa=c(min=15,max=30);p_HPa=c(min=90);p_PlPa=c(r=1)
 p_HPl=c(min=50);p_TPl=c(min=10,max=30);p_PaPl=c(r=-0.03);p_PlPl=c(r=1.05,sd=.1)
@@ -73,17 +281,6 @@ Pl = rnorm(1,Pl*(Pl>0),p_PlPl[2]*Pl*(Pl>0))
 Pe = (Pa>=p_PePa)
 Pe;Pa;Pl
 
-setClass("parFunList",
-         contains = "list",
-         prototype = list(new("parDisFun",function(x,p) rpois(1,p[[1]]),lengthx=1:1,lengthp=1:1,xname="T",pnames="TPa"),
-                          new("parDisFun",function(x,p) rnorm(1,p[["PlPl"]][1]+x[["Pl"]]*p[["PlPl"]][2],p[["PlPl"]][3]),lengthx=1:1,lengthp=1:1,xname=c("Pl"),pnames=c("PlPl"))
-                          ),
-         validity = function(object){
-           if (any(lapply(object,class)!="parDisFun")) stop("trying to create a funList where not all list components are parDisFun")}
-         )
-
-modl = new("parFunList",list(Plfun,Pafun,Pefun))
-         
 
 setClass("model",
          slot=c("parFunList","ecoLink",""))
@@ -418,11 +615,11 @@ dataList <- setClass("dataList",
 dataList <- function(x,timeByCol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD","IRR"),timeByRowNColInfo=NULL,connectivity=list(type="temporal",tempVar="yearHarvest",labelVar="NUMD",connectVar="yieldAnomaly",connectRow=9)){
   # timeByRowNcolInfo = list(cols="yearHarvest",colsBy="year",rows="_x",rowsBy="month")
   if (class(x)=="list") return(new("dataList",x))
-  if ((class(x)=="data.frame")&(!bycol)) return(new("dataList",list(x)))
+  if ((class(x)=="data.frame")&(!timeByCol)) return(new("dataList",list(x)))
   if ((class(x)=="data.frame")&(!is.null(timeByRowNColInfo))){
     
   }
-  if ((class(x)=="data.frame")&(bycol)){
+  if ((class(x)=="data.frame")&(timeByCol)){
     dataL=list()
     colnlist = strsplit(colnames(x),sep)
     coln <- levels(as.factor(unlist(lapply(strsplit(colnames(x),sep),function(x){x[[1]]}))))
@@ -443,7 +640,7 @@ dataList <- function(x,timeByCol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD",
       }
       dataL[[paste(listColTag,x[tag,listColTag],sep="",collapse="_")]]=dfn
     }
-    if (connectivity$typ="temporal"){
+    if (connectivity$typ=="temporal"){
       for (i in 1:length(dataL)){
         previousValue = unlist(lapply(dataL,function(dal){
           if ((dal[1,connectivity$tempVar] == dataL[[i]][1,connectivity$tempVar]-1)&(dal[1,connectivity$labelVar] == dataL[[i]][1,connectivity$labelVar])) dal[connectivity$connectRow,connectivity$connectVar] else NULL}))
@@ -460,10 +657,16 @@ dataList <- function(x,timeByCol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD",
 
 dl <- dataList(data,timeByCol=TRUE,sep="_",listColTag=c("yearHarvest","NUMD","IRR"))
 save(dl,file = "data.list.RData")
+load(file = "data.list.RData")
+df <- array(unlist(dl),dim=list(dim(dl[[1]])[1],dim(dl[[1]])[2],length(dl)),dimnames = list(c("JAN","FEB","MAR","APR","MAI","JUN","JUL","AUG","SEP","NOV"),colnames(dl[[1]]),names(dl)))
+df[,,1]
+?save
+save(df,file="yield.data.RData")
+
 
 x=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6))
 bycol=FALSE
-obj=dataList(x=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6)),bycol=FALSE)
+obj=dataList(x=data.frame(X1=c("a","b","c","d","e","f"),X2=c(1,2,3,4,5,6)),timeByCol=FALSE)
 
 setMethod("variable.names",
           signature="dataList",
