@@ -50,6 +50,8 @@ setClass("Data",
          }
          )
 #save(dataf,file = "yield.data.RData")
+setwd
+setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
 
 load("yield.data.RData")
 dataf[,,1]
@@ -58,12 +60,70 @@ idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
 dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
 edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
 dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
-idata[,3,]<-NA
-idata[1,4,]<-0;idata[2,4,]<-0.01 # planting offucrs in february
-idata[1,4,]<-0;idata[2,4,]<-0.01 # planting offucrs in february
-idata[1:2,3,]<-0 # there is no parasite before planting
-idata[1:2,5,]<-0 # there is no pesticide before planting
-idata[,,1:3]
+edata[,3,]<-NA
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1:2,3,]<-0 # there is no parasite before planting
+edata[1:2,5,]<-0 # there is no pesticide before planting
+edata[,,1:3]
+
+p=list(PaPa=c(rmax=10,K=20),TxPa=c(min=15,max=30),PrPa=c(min=3),PlPa=c(r=1),PrPl=c(rperPr=.5),TxPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=2.5,K=2,sd=.1),PePa=c(r=0.1),PaPe=c(thr=1.5))
+
+p_PaPa_rmax=10;p_PaPa_K=20
+p_TxPa_min=15;p_TxPa_max=30
+p_PrPa_min=3
+p_PlPa_r=1
+p_PrPl_rperPr=.5
+p_TxPl_min=10;p_TxPl_max=30
+p_PaPl_r=-0.03
+p_PlPl_r=2.5;p_PlPl_K=2;p_PlPl_sd=.1
+p_PePa_r=0.1
+p_PaPe=1.5
+names(p)
+
+for (k in 1:dim(edata)[3]){
+	for (i in 3:dim(edata)[1]){
+#Pe
+  edata[i,5,k]=edata[i-1,3,k]>p_PaPe
+#Pl
+  a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                 (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+  if(a>p_PlPl_K){a=2}
+  if(a<0) {a=0}
+  edata[i,4,k]=a
+#Pa
+  a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+  edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
+  }
+}
+
+p_Pl_sd_r=0.05
+p_T_sd=0.5
+p_Pe_pDet=.8
+
+for (k in 1:dim(edata)[3]){
+	for (i in 3:dim(edata)[1]){
+#Pe
+  if (edata[i,5,k]) edata[i,5,k]=rbinom(1,1,p_Pe_pDet)
+#Pl
+  idata[i,4,k]=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  if (idata[i,4,k]<0) idata[i,4,k]=0
+#Pa
+  idata[i,3,k]=rpois(1,edata[i,3,k])
+#T
+  idata[i,1,k]=rnorm(1,edata[i,1,k],p_T_sd)
+#Pr
+  idata[i,2,k]=rpois(1,edata[i,2,k])
+  }
+}
+tmp0=c(idata)
+tmp=lapply(1:dim(edata)[3], function(k){lapply(3:dim(edata)[1], function (i) {
+Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+if (Pl<0) Pl=0
+c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
+})})
+
+
 edata=idata
 setClass("parDisFun",
          contains = c("function"),
@@ -241,6 +301,8 @@ for (i in 2:100){
   plsim=list(p=plist,sim=sim)
   save(plsim,file = paste("pAndEcosim",i,".RData",sep=""))
   }
+
+
 plsim[[1]]
 simul <- function(object,p){
   lapply
