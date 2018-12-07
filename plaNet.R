@@ -1,4 +1,5 @@
 setwd("/home/dupas/PlaNet/")
+setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
 
 ## PlaNet
 
@@ -50,8 +51,7 @@ setClass("Data",
          }
          )
 #save(dataf,file = "yield.data.RData")
-setwd
-setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
+setwd()
 
 load("yield.data.RData")
 dataf[,,1]
@@ -68,6 +68,12 @@ edata[1:2,5,]<-0 # there is no pesticide before planting
 edata[,,1:3]
 
 p=list(PaPa=c(rmax=10,K=20),TxPa=c(min=15,max=30),PrPa=c(min=3),PlPa=c(r=1),PrPl=c(rperPr=.5),TxPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=2.5,K=2,sd=.1),PePa=c(r=0.1),PaPe=c(thr=1.5))
+names(p)
+
+
+#
+# Simulating ecosystem history
+#
 
 p_PaPa_rmax=10;p_PaPa_K=20
 p_TxPa_min=15;p_TxPa_max=30
@@ -79,32 +85,89 @@ p_PaPl_r=-0.03
 p_PlPl_r=2.5;p_PlPl_K=2;p_PlPl_sd=.1
 p_PePa_r=0.1
 p_PaPe=1.5
-names(p)
+p_Pl_sd_r=0.05
+p_T_sd=0.3
+p_Pe_pDet=.8
+
+
+# simulating ecosystem 
+
+# using lapply
+
+tmp=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(3:dim(edata)[1], function (i) {
+  Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                 (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+  if(Pl>p_PlPl_K){Pl=2}
+  if(Pl<0) {Pl=0}
+  Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+  c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
+    Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+ed=edata
+for(k in 1:dim(edata)[3]) for (i in 3:dim(edata)[1]){
+  Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                  (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+  if(Pl>p_PlPl_K){Pl=2}
+  if(Pl<0) {Pl=0}
+  Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+  c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
+    Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
+  ed[i,3:5,k]=c(Pa,Pl,(edata[i-1,3,k]>p_PaPe))
+}
+
+Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+if(Pl>p_PlPl_K){Pl=2}
+if(Pl<0) {Pl=0}
+Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
+  Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
+
+#
+# simulating ecosystem good one
+#
 
 for (k in 1:dim(edata)[3]){
-	for (i in 3:dim(edata)[1]){
-#Pe
-  edata[i,5,k]=edata[i-1,3,k]>p_PaPe
-#Pl
-  a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
-                                                                 (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
-  if(a>p_PlPl_K){a=2}
-  if(a<0) {a=0}
-  edata[i,4,k]=a
-#Pa
-  a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
-  edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
+  for (i in 3:dim(edata)[1]){
+    #Pe
+    edata[i,5,k]=edata[i-1,3,k]>p_PaPe
+    #Pl
+    a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                   (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+    if(a>p_PlPl_K){a=2}
+    if(a<0) {a=0}
+    edata[i,4,k]=a
+    #Pa
+    a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+    edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
   }
 }
 
-p_Pl_sd_r=0.05
-p_T_sd=0.5
-p_Pe_pDet=.8
+#
+# Calculating probability of ecosystem model
+#
+
+dims=dim(edata)
+for(k in 1:dims[3]) for (i in 3:dims[1]){
+
+  }
+
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  Pl=pnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  if (Pl<0) Pl=0
+  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+
+
+load(file = "edata.RData")
+edata[,,1]
 
 for (k in 1:dim(edata)[3]){
 	for (i in 3:dim(edata)[1]){
 #Pe
-  if (edata[i,5,k]) edata[i,5,k]=rbinom(1,1,p_Pe_pDet)
+  if (edata[i,5,k]) idata[i,5,k]=rbinom(1,1,p_Pe_pDet)
 #Pl
   idata[i,4,k]=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
   if (idata[i,4,k]<0) idata[i,4,k]=0
@@ -116,15 +179,446 @@ for (k in 1:dim(edata)[3]){
   idata[i,2,k]=rpois(1,edata[i,2,k])
   }
 }
-tmp0=c(idata)
-tmp=lapply(1:dim(edata)[3], function(k){lapply(3:dim(edata)[1], function (i) {
+
+#
+# Simulation of indicator data from edata good one
+#
+
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
 Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
 if (Pl<0) Pl=0
 c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
-})})
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+#
+# Simulation of edata from idata
+#
+# p(i/e)=p(e/i)*p(i)/p(e)
+# p(e/i)=p(i/e)*p(e)/p(i)
+# p(H)=dgamma3(x,1,5.749)
+# P(T)=dnorm(1,10,4)*.55+dnorm(1,21,3)*.45
+# P(Pa)=dgamma(x+1,.2,3)
+# P(Pl)=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+# plot(dnorm(1:40,10,4)*.6+dnorm(1:40,4)*.4)
+# ?dnorm
+library(FAdist)
+.1*1.5^8
+par(mfrow=c(1,2))
+hist(idata[,4,])
+plot((0:10)/5,dexp((1:11),1.3,1.5))
+plot(-5:35,dnorm(-5:35,10,4)*.55+dnorm(-5:35,21,3)*.45)
+hist(rpois(length(idata[,2,]),.1))
+     plot(1:20,dgamma3(1:20,1,2))
+     pgamma3(1,1,5.749)
+     sum(edata[,2,]<1)/length(edata[,2,])
+     pgamma3(2,1,5.749)
+     sum((edata[,2,]<2)&(edata[,2,]>1))/length(idata[,2,])
+     ?rgamma3
+dimnames(idata)[[2]]
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  if (Pl<0) Pl=0
+  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
 
 
-edata=idata
+#
+# Probability of indicator data
+#
+
+hist(edata[,4,])
+idata
+log(exp(1))
+pT <- sum(dnorm(idata[,1,],edata[,1,],p_T_sd,log=TRUE))
+pH <- sum(dpois(idata[,2,],edata[,2,],log=TRUE)))
+pPa <- sum(dpois(idata[,3,],edata[,3,],log=TRUE))
+sdPl=edata[,4,]*p_Pl_sd_r
+sdPl[sdPl<=0.1]=.1
+pPl <- sum(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl,log=TRUE))
+pPe <- dbinom(idata[,5,],1,prob=edata[,5,]*p_Pe_pDet,log=TRUE)
+
+pIndic <- sum(c(pT = sum(log(dnorm(idata[,1,],edata[,1,],p_T_sd))),
+                 pH = sum(log(dpois(idata[,2,],edata[,2,]))),
+                 pPa = sum(log(dpois(idata[,3,],edata[,3,]))),
+                 sdPl={sdPl=edata[,4,]*p_Pl_sd_r
+                 sdPl[sdPl<=0.1]=.1
+                 sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
+                 pPe=sum(dbinom(idata[,5,],1,prob=edata[,5,]*p_Pe_pDet,log=TRUE))
+))
+edata[1:8,,1]
+idata[1:8,,1]
+
+p_PaPa_rmax=10
+p_PaPa_K=20
+p_TxPa_min=15
+p_TxPa_max=30
+p_PrPa_min=3
+p_PlPa_r=1
+p_PrPl_rperPr=.5
+p_TxPl_min=10
+p_TxPl_max=30
+p_PaPl_r=-0.03
+p_PlPl_r=2.5
+p_PlPl_K=2
+p_PlPl_sd=.1
+p_PePa_r=0.1
+p_PaPe=1.5
+p_Pl_sd_r=0.05
+p_T_sd=0.3
+p_Pe_pDet=.8
+p_Pe_pFalseDet=.005
+
+
+#ecosysHistory
+p0 = c(p_PaPa_rmax=exp(runif(1,log(5),log(15))),p_PaPa_K=exp(runif(1,log(15),log(25))),
+       p_TxPa_min=runif(1,10,20),p_TxPa_max=runif(1,25,35),
+       p_PrPa_min=runif(1,1.5,4),p_PlPa_r=runif(1,.7,1.5),
+       p_PrPl_rperPr=runif(1,.3,.7),p_TxPl_min=runif(1,5,14),p_TxPl_max=runif(1,26,32),
+       p_PaPl_r=exp(runif(1,log(0.015),log(0.045))),
+       p_PlPl_r=exp(runif(1,log(1.8),log(3.5))),p_PlPl_K=exp(runif(1,log(1.5),log(3))),p_PlPl_sd=runif(1,.07,.15),
+       p_PePa_r=exp(runif(1,log(.06),log(.15))),
+       p_PaPe=runif(1,1.3,1.9),
+       #ecoindic
+       p_Pl_sd_r=exp(runif(1,log(.03),log(.07))),
+       p_T_sd=runif(1,.2,.5),
+       p_Pe_pDet=runif(1,.6,.99),
+       p_Pe_pFalseDet=exp(runif(1,log(.001),log(.02)))
+)
+
+#
+# Algorithm
+#
+setwd("/home/dupas/PlaNet/")
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+indicVar=c("iT","iPr","iPa","iPl","iPe")
+load("yield.data.RData")
+dataf[,,1]
+load(file = "yield.data.RData")
+
+setClass("Data",
+         contains="array",
+         validity=function(object){
+           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
+         }
+)
+
+idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
+edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
+edata[,3,]<-NA
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1:2,3,]<-0 # there is no parasite before planting
+edata[1:2,5,]<-0 # there is no pesticide before planting
+edata[,,1:3]
+
+#library(raster)
+
+#edata
+#idata
+
+
+
+# EXAMPLE OF LEARNING ECOSYSTEM
+# simulate ecosystem
+
+# set true parameters
+
+#true parameters
+p0=c(p_PaPa_rmax=10,p_PaPa_K=20,
+     p_TxPa_min=15,p_TxPa_max=30,
+     p_PrPa_min=3,
+     p_PlPa_r=1,
+     p_PrPl_rperPr=.5,
+     p_TxPl_min=10,p_TxPl_max=30,
+     p_PaPl_r=-0.03,
+     p_PlPl_r=2.5,
+     p_PlPl_K=2,
+     p_PlPl_sd=.1,
+     p_PePa_r=0.1,
+     p_PaPe=1.5,
+     p_Pl_sd_r=0.05,
+     p_T_sd=0.3,
+     p_Pe_pDet=.8,
+     p_Pe_pFalseDet=.005)
+
+
+# set parameters to true parameters
+
+p_PaPa_rmax=p0["p_PaPa_rmax"]
+p_TxPa_min=p0["p_TxPa_min"]
+p_PrPa_min=p0["p_PrPa_min"]
+p_PlPa_r=p0["p_PlPa_r"]
+p_PrPl_rperPr=p0["p_PrPl_rperPr"]
+p_TxPl_min=p0["p_TxPl_min"]
+p_PaPl_r=p0["p_PaPl_r"]
+p_PlPl_r=p0["p_PlPl_r"]
+p_PlPl_K=p0["p_PlPl_K"]
+p_PlPl_sd=p0["p_PlPl_sd"]
+p_PePa_r=p0["p_PePa_r"]
+p_PaPe=p0["p_PaPe"]
+#ecoindic
+p_Pl_sd_r=p0["p_Pl_sd_r"]
+p_T_sd=p0["p_T_sd"]
+p_Pe_pDet=p0["p_Pe_pDet"]
+p_Pe_pFalseDet=p0["p_Pe_pFalseDet"]
+
+
+
+# simulate true edata
+for (k in 1:dim(edata)[3]){
+  for (i in 3:dim(edata)[1]){
+    #Pe
+    edata[i,5,k]=edata[i-1,3,k]>p_PaPe
+    #Pl
+    a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                   (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+    if(a>p_PlPl_K){a=2}
+    if(a<0) {a=0}
+    edata[i,4,k]=a
+    #Pa
+    a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+    edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
+  }
+}
+
+# save true ecosystem
+e0data <-edata
+edataTrue <- edata
+
+
+# simulate true idata
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  if (Pl<0) Pl=0
+  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet)+rbinom(1,!edata[i,5,k],p_Pe_pFalseDet))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+# save true idata
+idataTrue <- idata
+
+
+
+Posterior <-  data.frame(runi=0,p_PaPa_rmax=0,p_TxPa_min=0,p_PrPa_min=0,p_PlPa_r=0,p_PrPl_rperPr=0,p_TxPl_min=0,
+                         p_PaPl_r=0,p_PlPl_r=0,p_PePa_r=0,p_PaPe=0,p_Pl_sd_r=0,p_T_sd=0,p_Pe_pDet=0,p_Pe_pFalseDet=0,prior=0,posterior=0)
+
+Posterior=Posterior[-1,]
+runi=1
+
+# Sampling algorithm
+
+samplePrior <- function(option="prior"){
+  if(option=="prior") c(p_PaPa_rmax=exp(runif(1,log(5),log(15))),
+                        p_PaPa_K=exp(runif(1,log(15),log(25))),
+                        p_TxPa_min=runif(1,10,20),
+                        p_TxPa_max=runif(1,25,35),
+                        p_PrPa_min=runif(1,1.5,4),
+                        p_PlPa_r=runif(1,.7,1.5),
+                        p_PrPl_rperPr=runif(1,.3,.7),
+                        p_TxPl_min=runif(1,5,14),
+                        p_TxPl_max=runif(1,26,32),
+                        p_PaPl_r=-exp(runif(1,log(0.001),log(0.045))),
+                        p_PlPl_r=exp(runif(1,log(1.8),log(3.5))),
+                        p_PlPl_K=exp(runif(1,log(1.5),log(3))),
+                        p_PlPl_sd=runif(1,.07,.15),
+                        p_PePa_r=exp(runif(1,log(.06),log(.15))),
+                        p_PaPe=runif(1,1.3,1.9),
+                        #ecoindic
+                        p_Pl_sd_r=exp(runif(1,log(.03),log(.07))),
+                        p_T_sd=runif(1,.2,.5),
+                        p_Pe_pDet=runif(1,.6,.99),
+                        p_Pe_pFalseDet=exp(runif(1,log(.001),log(.02))))
+}
+
+
+#
+getPprime <- (p){
+  
+}
+
+simul_edataFromidata <- function(idata){
+  T = rnorm(1,round(idata[,1,]),p_T_sd))),
+  pH = rpois(1,idata[,2,]),
+  pPa = rpois(1,idata[,3,]),
+  pPl = rgamma(n, shape, rate = 1, scale = 1/rate)
+  sdPl={sdPl=edata[,4,]*p_Pl_sd_r
+  sdPl[sdPl<=0.1]=.1
+  sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
+  pPe={
+    p1 <- which1 <- which(as.logical(edata[,5,]))
+    p1 <- sum(dbinom(idata[,5,][which1],1,p_Pe_pDet,log=TRUE))
+    p0 <- which0 <- which(!as.logical(edata[,5,]))
+    p0 <- sum(dbinom(idata[,5,][which0],1,p_Pe_pFalseDet,log=TRUE))
+    p0+p1
+}
+mean(rgamma(1000,2,scale=1/3)) 2/3
+var(rgamma(100000,2,3)) #2*(1/3)^2 
+
+# gamma
+# mean=shape/rate=shape*scale
+# var=shape/(rate^2)=shape*scale^2
+# shape=mean^2/var
+# scale = var/mean
+
+scale=(var/shape)^.5
+shape=shape^.5*mean/var^.5
+shape^.5=mean/var^.5
+scale=var^1.5/mean
+
+#
+# Initialisation of learning
+
+
+# Sample first prior (or set from true parameters to get to the rightplace at first steps)
+
+p_PaPa_rmax=exp(runif(1,log(5),log(15)))#p_PaPa_rmax=10
+p_PaPa_K=exp(runif(1,log(15),log(25)))#p_PaPa_K=20
+p_TxPa_min=runif(1,10,20)#p_TxPa_min=15
+p_TxPa_max=runif(1,25,35)#p_TxPa_max=30
+p_PrPa_min=runif(1,1.5,4)#p_PrPa_min=3
+p_PlPa_r=runif(1,.7,1.5)#p_PlPa_r=1
+p_PrPl_rperPr=runif(1,.3,.7)#p_PrPl_rperPr=.5
+p_TxPl_min=runif(1,5,14)#p_TxPl_min=10
+p_TxPl_max=runif(1,26,32)#p_TxPl_max=30
+p_PaPl_r=-exp(runif(1,log(0.001),log(0.045)))#p_PaPl_r=-0.03
+p_PlPl_r=exp(runif(1,log(1.8),log(3.5)))#p_PlPl_r=2.5
+p_PlPl_K=exp(runif(1,log(1.5),log(3)))#p_PlPl_K=2
+p_PlPl_sd=runif(1,.07,.15)#p_PlPl_sd=.1
+p_PePa_r=exp(runif(1,log(.06),log(.15)))#p_PePa_r=0.1
+p_PaPe=runif(1,1.3,1.9)#p_PaPe=1.5
+#ecoindic
+p_Pl_sd_r=exp(runif(1,log(.03),log(.07)))#p_Pl_sd_r=0.05
+p_T_sd=runif(1,.2,.5)#p_T_sd=0.3
+p_Pe_pDet=runif(1,.6,.99)#p_Pe_pDet=.8
+p_Pe_pFalseDet=exp(runif(1,log(.001),log(.02)))#p_Pe_pFalseDet=.005
+
+#
+# Learning loop
+#
+
+for (runi in 2:100){# sample prior
+print(runi)  
+  
+  # simulate edata from prior sample
+  
+  for (k in 1:dim(edata)[3]){
+    for (i in 3:dim(edata)[1]){
+      #Pe
+      edata[i,5,k]=edata[i-1,3,k]>p_PaPe
+      #Pl
+      a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                     (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+      if(a>p_PlPl_K){a=2}
+      if(a<0) {a=0}
+      edata[i,4,k]=a
+      #Pa
+      a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+      edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
+    }
+  }
+  
+  # Calculate idata probability from edata history
+  
+  pIndic <- sum(c(pT = sum(log(dnorm(round(idata[,1,]),edata[,1,],p_T_sd))),
+                  pH = sum(log(dpois(round(idata[,2,]),edata[,2,]))),
+                  pPa = {
+                    p1 <- which1 <- which(as.logical(edata[,3,]))
+                    p1 <- sum(dbinom(idata[,5,][which1],1,p_Pe_pDet,log=TRUE))
+                    p1*length(idata[,5,])/length(which1)
+                  },
+                  sdPl={sdPl=edata[,4,]*p_Pl_sd_r
+                  sdPl[sdPl<=0.1]=.1
+                  sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
+                  pPe={
+                    p1 <- which1 <- which(as.logical(edata[,5,]))
+                    p1 <- sum(dbinom(idata[,5,][which1],1,p_Pe_pDet,log=TRUE))
+                    p0 <- which0 <- which(!as.logical(edata[,5,]))
+                    p0 <- sum(dbinom(idata[,5,][which0],1,p_Pe_pFalseDet,log=TRUE))
+                    p0+p1
+                  }
+  ))
+  
+  # calculate posterior
+  # posterior = likelihood * prior
+  
+  prior = log(prod(c(p_PaPa_rmax=dunif(log(p_PaPa_rmax),log(5),log(15))/(log(15)-log(5)),
+                     p_PaPa_K=1/(log(25)-log(15)),
+                     p_TxPa_min=1/(-10+20),
+                     p_TxPa_max=1/(-25+35),
+                     p_PrPa_min=1/(-1.5+4),
+                     p_PlPa_r=1/(-.7+1.5),
+                     p_PrPl_rperPr=1/(-.3+.7),
+                     p_TxPl_min=1/(5+14),
+                     p_TxPl_max=1/(26+32),
+                     p_PaPl_r=1/(-log(0.015)+log(0.045)),
+                     p_PlPl_r=1/(-log(1.8)+log(3.5)),
+                     p_PlPl_K=1/(-log(1.5)+log(3)),
+                     p_PlPl_sd=1/(-.07+.15),
+                     p_PePa_r=1/(-log(.06)+log(.15)),
+                     p_PaPe=1/(-1.3+1.9),
+                     #ecoindic
+                     p_Pl_sd_r=1/(-log(.03)+log(.07)),
+                     p_T_sd=1/(-.2+.5),
+                     p_Pe_pDet=1/(-.6+.99),
+                     p_Pe_pFalseDet=1/(-.7+.99))))
+  
+  # since sampled from uniforms props = constant
+  # we use onliy likelihood to sample
+  
+  posterior = pIndic + prior
+  Posterior[runi,] <-   c(runi,p_PaPa_rmax,p_TxPa_min,p_PrPa_min,p_PlPa_r,p_PrPl_rperPr,p_TxPl_min,p_PaPl_r,p_PlPl_r,p_PePa_r,p_PaPe,p_Pl_sd_r,p_T_sd,p_Pe_pDet,p_Pe_pFalseDet,prior,posterior)
+
+  # metropolis move
+  p_PaPa_rmax=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p_PaPa_rmax+(15-5)/20) else log(p_PaPa_rmax-(15-5)/20)};{ if (a<log(5)) log(5) else if (a>log(15)) log(15) else a}})#exp(runif(1,log(5),log(15)))
+  #p_PaPa_K={a={rbinom(1,1,1/2);if(a==0) a=-1;a}*(log(25)-log(15))/20;if (p_PaPa_K<15) p_PaPa_K=15;if (p_PaPa_K>15) p_PaPa_K=25;p_PaPa_K}#exp(runif(1,log(15),log(25)))
+  p_TxPa_min={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(20-10)/20;a=p_TxPa_min+b;if (a<10) a=15;if (a>20) a=20;a}#runif(1,10,20)
+  p_TxPa_max={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(35-25)/20;a=p_TxPa_max+b;if (a<25) a=25;if (a>35) a=35;a}#runif(1,25,35)
+  p_PrPa_min={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(4-1.5)/20;a=p_PrPa_min+b;if (a<1.5) a=1.5;if (a>4) a=4;a}#runif(1,1.5,4)
+  p_PlPa_r={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(1.5-.7)/20;a=p_PlPa_r+b;if (a<.7) a=.7;if (a>1.5) a=1.5;a}#runif(1,.7,1.5)
+  p_PrPl_rperPr={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.7-.3)/20;a=p_PrPl_rperPr+b;if (a<.3) a=.3;if (a>.7) a=.7;a}#runif(1,.3,.7)
+  p_TxPl_min={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(14-5)/20;a=p_TxPl_min+b;if (a<5) a=5;if (a>14) a=14;a}#runif(1,5,14)
+  p_TxPl_max={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(32-26)/20;a=p_TxPl_max+b;if (a<26) a=26;if (a>32) a=32;a}#runif(1,26,32)
+  p_PaPl_r=-exp({a={if(as.logical(rbinom(1,1,1/2))) log(-p_PaPl_r-(.01-.045)/20) else log(-p_PaPl_r+(.01-.045)/20)};{ if (a<log(.01)) log(.01) else if (a>log(.045)) log(.045) else a}})#-exp(runif(1,log(0.015),log(0.045)))
+  p_PlPl_r=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p_PlPl_r+(3.5-1.8)/20) else log(p_PlPl_r-(3.5-1.8)/20)};{ if (a<log(1.8)) log(1.8) else if (a>log(3.5)) log(3.5) else a}})#exp(runif(1,log(1.8),log(3.5)))
+  p_PlPl_K=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p_PlPl_K+(3-1.5)/20) else log(p_PlPl_K-(3-1.5)/20)};{ if (a<log(1.5)) log(1.5) else if (a>log(3)) log(3) else a}})#exp(runif(1,log(1.5),log(3)))
+  p_PlPl_sd={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.15-.07)/20;a=p_PlPl_sd+b;if (a<.07) a=.07;if (a>.15) a=.15;a}#runif(1,.07,.15)
+  p_PePa_r={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.15-.06)/20;a=p_PePa_r+b;if (a<.06) a=.06;if (a>.15) a=.15;a}#exp(runif(1,log(.06),log(.15)))
+  p_PaPe={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(1.9-1.3)/20;a=p_PaPe+b;if (a<1.3) a=1.3;if (a>1.9) a=1.9;a}#runif(1,1.3,1.9)
+  #ecoindic
+  p_Pl_sd_r=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p_Pl_sd_r+(.07-.03)/20) else log(p_Pl_sd_r-(.07-.03)/20)};{ if (a<log(.03)) log(.07) else if (a>log(.07)) log(.07) else a}})#exp(runif(1,log(.03),log(.07)))
+    {b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.7-.03)/20;a=p_Pl_sd_r+b;if (a<.03) a=.03;if (a>.7) a=.7;a}
+  p_T_sd={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.5-.2)/20;a=p_T_sd+b;if (a<.2) a=.2;if (a>.5) a=.5;a}#runif(1,.2,.5)
+  p_Pe_pDet={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.99-.6)/20;a=p_Pe_pDet+b;if (a<.6) a=.6;if (a>.99) a=.99;a}#runif(1,.6,.99)
+  p_Pe_pFalseDet={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.02-.001)/20;a=p_Pe_pFalseDet+b;if (a<.001) a=.001;if (a>.02) a=.02;a}#exp(runif(1,log(.001),log(.02)))
+  
+  p_PaPa_rmax=pprime["p_PaPa_rmax"]
+  p_TxPa_min=pprime["p_TxPa_min"]
+  p_PrPa_min=pprime["p_PrPa_min"]
+  p_PlPa_r=pprime["p_PlPa_r"]
+  p_PrPl_rperPr=pprime["p_PrPl_rperPr"]
+  p_TxPl_min=pprime["p_TxPl_min"]
+  p_PaPl_r=pprime["p_PaPl_r"]
+  p_PlPl_r=pprime["p_PlPl_r"]
+  p_PlPl_K=pprime["p_PlPl_K"]
+  p_PlPl_sd=pprime["p_PlPl_sd"]
+  p_PePa_r=pprime["p_PePa_r"]
+  p_PaPe=pprime["p_PaPe"]
+  #ecoindic
+  p_Pl_sd_r=pprime["p_Pl_sd_r"]
+  p_T_sd=pprime["p_T_sd"]
+  p_Pe_pDet=pprime["p_Pe_pDet"]
+  p_Pe_pFalseDet=pprime["p_Pe_pFalseDet"]
+  
+  }
+
+Posterior <-  data.frame(p_PaPa_rmax=0,p_TxPa_min=0,p_PrPa_min=0,p_PlPa_r=0,p_PrPl_rperPr=0,p_TxPl_min=0,
+                         p_PaPl_r=0,p_PlPl_r=0,p_PePa_r=0,p_PaPe=0,p_Pl_sd_r=0,p_T_sd=0,p_Pe_pDet=0,p_Pe_pFalseDet=0,prior=0,posterior=0)
+
+
+
+# 
+
 setClass("parDisFun",
          contains = c("function"),
          slots= c(lengthx="integer",lengthp="integer",xname="character",pnames="character"),
