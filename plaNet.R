@@ -154,7 +154,7 @@ for(k in 1:dims[3]) for (i in 3:dims[1]){
   }
 
 idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
-  Pl=pnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  Pl=pgamma(1,shape=edata[i,4,k],rate=p_Pl_var_r)
   if (Pl<0) Pl=0
   c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
 })})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
@@ -162,23 +162,37 @@ idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)
 
 
 load(file = "edata.RData")
-edata[,,1]
+n=length(edata[,1,])
 
-for (k in 1:dim(edata)[3]){
-	for (i in 3:dim(edata)[1]){
+simulate idata from edata
+
 #Pe
-  if (edata[i,5,k]) idata[i,5,k]=rbinom(1,1,p_Pe_pDet)
+  idata[,5,]=(edata[,5,])*rbinom(n,1,p_Pe_pDet)
 #Pl
-  idata[i,4,k]=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-  if (idata[i,4,k]<0) idata[i,4,k]=0
+  idata[,4,]=rgamma(n,edata[,4,],rate=p_Pl_var_r)
 #Pa
-  idata[i,3,k]=rpois(1,edata[i,3,k])
+  idata[,3,]=rpois(n,edata[,3,])
 #T
-  idata[i,1,k]=rnorm(1,edata[i,1,k],p_T_sd)
+  idata[,1,]=rnorm(n,edata[,1,],p_T_sd)
 #Pr
-  idata[i,2,k]=rpois(1,edata[i,2,k])
-  }
-}
+  idata[,2,]=rpois(n,edata[,2,])
+
+#for (k in 1:dim(edata)[3]){
+#	for (i in 3:dim(edata)[1]){
+#Pe
+#  if (edata[i,5,k]) idata[i,5,k]=rbinom(1,1,p_Pe_pDet)
+#Pl
+#  idata[i,4,k]=rgamma(length(edata[,4,]),edata[,4,],rate=p_Pl_var_r)
+#rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+#  if (idata[i,4,k]<0) idata[i,4,k]=0
+#Pa
+#  idata[i,3,k]=rpois(1,edata[i,3,k])
+#T
+#  idata[i,1,k]=rnorm(1,edata[i,1,k],p_T_sd)
+#Pr
+#  idata[i,2,k]=rpois(1,edata[i,2,k])
+#  }
+#}
 
 #
 # Simulation of indicator data from edata good one
@@ -322,49 +336,89 @@ edata[,,1:3]
 
 # EXAMPLE OF LEARNING ECOSYSTEM
 # simulate ecosystem
+# this is a an annual plant pathogen interaction system
+# start from the simulation of ecosystem history and indicator data from 
+# a true model then assume we have access to indicator data 
+# to infer the model using prior.
+# The full ecosystem data is simulated from indicator and prior 
+# The likelihood of is estimated from ecosystem history
+# The posterior is calculated and sampled using metropolis algorithm
+
+setwd("/home/dupas/PlaNet/")
+setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
 
 # set true parameters
 
 #true parameters
-p0=c(p_PaPa_rmax=10,p_PaPa_K=20,
-     p_TxPa_min=15,p_TxPa_max=30,
-     p_PrPa_min=3,
-     p_PlPa_r=1,
-     p_PrPl_rperPr=.5,
-     p_TxPl_min=10,p_TxPl_max=30,
-     p_PaPl_r=-0.03,
-     p_PlPl_r=2.5,
-     p_PlPl_K=2,
-     p_PlPl_sd=.1,
-     p_PePa_r=0.1,
-     p_PaPe=1.5,
-     p_Pl_sd_r=0.05,
-     p_T_sd=0.3,
-     p_Pe_pDet=.8,
-     p_Pe_pFalseDet=.005)
+p0=list(PaPa_rmax=10,PaPa_K=20,
+     TxPa_min=15,TxPa_max=30,
+     PrPa_min=3,
+     PlPa_r=1,
+     PrPl_rperPr=.5,
+     TxPl_min=10,TxPl_max=30,
+     PaPl_r=-0.03,
+     PlPl_r=2.5,
+     PlPl_K=2,
+     PlPl_sd=.1,
+     PePa_r=0.1,
+     PaPe=1.5,
+     Pl_var_r=0.05^2,
+     T_sd=0.3,
+     Pe_pDet=.8,
+     Pe_pFalseDet=.005)
 
 
 # set parameters to true parameters
 
-p_PaPa_rmax=p0["p_PaPa_rmax"]
-p_TxPa_min=p0["p_TxPa_min"]
-p_PrPa_min=p0["p_PrPa_min"]
-p_PlPa_r=p0["p_PlPa_r"]
-p_PrPl_rperPr=p0["p_PrPl_rperPr"]
-p_TxPl_min=p0["p_TxPl_min"]
-p_PaPl_r=p0["p_PaPl_r"]
-p_PlPl_r=p0["p_PlPl_r"]
-p_PlPl_K=p0["p_PlPl_K"]
-p_PlPl_sd=p0["p_PlPl_sd"]
-p_PePa_r=p0["p_PePa_r"]
-p_PaPe=p0["p_PaPe"]
+p_PaPa_rmax=p0["PaPa_rmax"]
+p_PaPa_K=p0["PaPa_K"]
+p_TxPa_min=p0["TxPa_min"]
+p_TxPa_max=p0["TxPa_max"]
+p_PrPa_min=p0["PrPa_min"]
+p_PlPa_r=p0["PlPa_r"]
+p_PrPl_rperPr=p0["PrPl_rperPr"]
+p_TxPl_min=p0["TxPl_min"]
+p_TxPl_max=p0["TxPl_max"]
+p_PaPl_r=p0["PaPl_r"]
+p_PlPl_r=p0["PlPl_r"]
+p_PlPl_K=p0["PlPl_K"]
+p_PlPl_sd=p0["PlPl_sd"]
+p_PePa_r=p0["PePa_r"]
+p_PaPe=p0["PaPe"]
 #ecoindic
-p_Pl_sd_r=p0["p_Pl_sd_r"]
-p_T_sd=p0["p_T_sd"]
-p_Pe_pDet=p0["p_Pe_pDet"]
-p_Pe_pFalseDet=p0["p_Pe_pFalseDet"]
+p_Pl_var_r=p0["Pl_var_r"]
+p_T_sd=p0["T_sd"]
+p_Pe_pDet=p0["Pe_pDet"]
+p_Pe_pFalseDet=p0["Pe_pFalseDet"]
 
+#
+# set time series
+#
 
+setwd("/home/dupas/PlaNet/")
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+indicVar=c("iT","iPr","iPa","iPl","iPe")
+load("yield.data.RData")
+dataf[,,1]
+load(file = "yield.data.RData")
+
+setClass("Data",
+         contains="array",
+         validity=function(object){
+           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
+         }
+)
+
+idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
+edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
+edata[,3,]<-NA
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1:2,3,]<-0 # there is no parasite before planting
+edata[1:2,5,]<-0 # there is no pesticide before planting
+edata[,,1:3]
 
 # simulate true edata
 for (k in 1:dim(edata)[3]){
@@ -390,15 +444,13 @@ edataTrue <- edata
 
 # simulate true idata
 idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
-  Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-  if (Pl<0) Pl=0
+  Pl=rgamma(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  #if (Pl<0) Pl=0
   c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet)+rbinom(1,!edata[i,5,k],p_Pe_pFalseDet))
 })})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
 
 # save true idata
 idataTrue <- idata
-
-
 
 Posterior <-  data.frame(runi=0,p_PaPa_rmax=0,p_TxPa_min=0,p_PrPa_min=0,p_PlPa_r=0,p_PrPl_rperPr=0,p_TxPl_min=0,
                          p_PaPl_r=0,p_PlPl_r=0,p_PePa_r=0,p_PaPe=0,p_Pl_sd_r=0,p_T_sd=0,p_Pe_pDet=0,p_Pe_pFalseDet=0,prior=0,posterior=0)
@@ -409,47 +461,66 @@ runi=1
 # Sampling algorithm
 
 samplePrior <- function(option="prior"){
-  if(option=="prior") c(p_PaPa_rmax=exp(runif(1,log(5),log(15))),
-                        p_PaPa_K=exp(runif(1,log(15),log(25))),
-                        p_TxPa_min=runif(1,10,20),
-                        p_TxPa_max=runif(1,25,35),
-                        p_PrPa_min=runif(1,1.5,4),
-                        p_PlPa_r=runif(1,.7,1.5),
-                        p_PrPl_rperPr=runif(1,.3,.7),
-                        p_TxPl_min=runif(1,5,14),
-                        p_TxPl_max=runif(1,26,32),
-                        p_PaPl_r=-exp(runif(1,log(0.001),log(0.045))),
-                        p_PlPl_r=exp(runif(1,log(1.8),log(3.5))),
-                        p_PlPl_K=exp(runif(1,log(1.5),log(3))),
-                        p_PlPl_sd=runif(1,.07,.15),
-                        p_PePa_r=exp(runif(1,log(.06),log(.15))),
-                        p_PaPe=runif(1,1.3,1.9),
+  if(option=="prior") list(PaPa_rmax=exp(runif(1,log(5),log(15))),
+                        PaPa_K=exp(runif(1,log(15),log(25))),
+                        TxPa_min=runif(1,10,20),
+                        TxPa_max=runif(1,25,35),
+                        PrPa_min=runif(1,1.5,4),
+                        PlPa_r=runif(1,.7,1.5),
+                        PrPl_rperPr=runif(1,.3,.7),
+                        TxPl_min=runif(1,5,14),
+                        TxPl_max=runif(1,26,32),
+                        PaPl_r=-exp(runif(1,log(0.001),log(0.045))),
+                        PlPl_r=exp(runif(1,log(1.8),log(3.5))),
+                        PlPl_K=exp(runif(1,log(1.5),log(3))),
+                        PlPl_sd=runif(1,.07,.15),
+                        PePa_r=exp(runif(1,log(.06),log(.15))),
+                        PaPe=runif(1,1.3,1.9),
                         #ecoindic
-                        p_Pl_sd_r=exp(runif(1,log(.03),log(.07))),
-                        p_T_sd=runif(1,.2,.5),
-                        p_Pe_pDet=runif(1,.6,.99),
-                        p_Pe_pFalseDet=exp(runif(1,log(.001),log(.02))))
+                        Pl_var_r=(exp(runif(1,log(.03),log(.07))))^2,
+                        T_sd=runif(1,.2,.5),
+                        Pe_pDet=runif(1,.6,.99),
+                        Pe_pFalseDet=exp(runif(1,log(.001),log(.02))))
 }
 
 
-#
-getPprime <- (p){
-  
-}
+getPprime <- function(p,rate=1/20){
+list(PaPa_rmax=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p$PaPa_rmax+(15-5)*rate) else log(p$PaPa_rmax-(15-5)*rate)};{ if (a<log(5)) log(5) else if (a>log(15)) log(15) else a}}),
+  PaPa_K={a={rbinom(1,1,1/2);if(a==0) a=-1;a}*(log(25)-log(15))*rate;if (p$PaPa_K<15) p$PaPa_K=15;if (p$PaPa_K>15) p$PaPa_K=25;p$PaPa_K},
+  TxPa_min={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(20-10)*rate;a=p$TxPa_min+b;if (a<10) a=15;if (a>20) a=20;a},
+  TxPa_max={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(35-25)*rate;a=p$TxPa_max+b;if (a<25) a=25;if (a>35) a=35;a},
+  PrPa_min={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(4-1.5)*rate;a=p$PrPa_min+b;if (a<1.5) a=1.5;if (a>4) a=4;a},
+  PlPa_r={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(1.5-.7)*rate;a=p$PlPa_r+b;if (a<.7) a=.7;if (a>1.5) a=1.5;a},
+  PrPl_rperPr={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.7-.3)*rate;a=p$PrPl_rperPr+b;if (a<.3) a=.3;if (a>.7) a=.7;a},
+  TxPl_min={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(14-5)*rate;a=p$TxPl_min+b;if (a<5) a=5;if (a>14) a=14;a},
+  TxPl_max={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(32-26)*rate;a=p$TxPl_max+b;if (a<26) a=26;if (a>32) a=32;a},
+  PaPl_r=-exp({a={if(as.logical(rbinom(1,1,1/2))) log(-p$PaPl_r-(.01-.045)*rate) else log(-p$PaPl_r+(.01-.045)*rate)};{ if (a<log(.01)) log(.01) else if (a>log(.045)) log(.045) else a}}),
+  PlPl_r=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p$PlPl_r+(3.5-1.8)*rate) else log(p$PlPl_r-(3.5-1.8)*rate)};{ if (a<log(1.8)) log(1.8) else if (a>log(3.5)) log(3.5) else a}}),
+  PlPl_K=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p$PlPl_K+(3-1.5)*rate) else log(p$PlPl_K-(3-1.5)*rate)};{ if (a<log(1.5)) log(1.5) else if (a>log(3)) log(3) else a}}),
+  PlPl_sd={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.15-.07)*rate;a=p$PlPl_sd+b;if (a<.07) a=.07;if (a>.15) a=.15;a},
+  PePa_r={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.15-.06)*rate;a=p$PePa_r+b;if (a<.06) a=.06;if (a>.15) a=.15;a},
+  PaPe={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(1.9-1.3)*rate;a=p$PaPe+b;if (a<1.3) a=1.3;if (a>1.9) a=1.9;a},
+  Pl_var_r=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p$Pl_var_r^.5+(.07-.03)*rate) else 2*log(p$Pl_var_r^.5-(.07-.03)*rate)};
+  { if (a<2*log(.03)) 2*log(.07) else if (a>2*log(.07)) 2*log(.07) else a}}),
+  T_sd={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.5-.2)*rate;a=p$T_sd+b;if (a<.2) a=.2;if (a>.5) a=.5;a},
+  Pe_pDet={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.99-.6)*rate;a=p$Pe_pDet+b;if (a<.6) a=.6;if (a>.99) a=.99;a},
+  Pe_pFalseDet={b={b=rbinom(1,1,1/2);if(b==0) b=-1;b}*(.02-.001)*rate;a=p$Pe_pFalseDet+b;if (a<.001) a=.001;if (a>.02) a=.02;a}
+)}
+
 
 simul_edataFromidata <- function(idata){
-  T = rnorm(1,round(idata[,1,]),p_T_sd))),
+  T = rnorm(1,round(idata[,1,]),p["p_T_sd"]))),
   pH = rpois(1,idata[,2,]),
   pPa = rpois(1,idata[,3,]),
-  pPl = rgamma(n, shape, rate = 1, scale = 1/rate)
-  sdPl={sdPl=edata[,4,]*p_Pl_sd_r
+  pPl = rgamma(n, shape=idata[,4,], scale = p_Pl_var_r)
+  sdPl={sdPl=edata[,4,]*["p_Pl_sd_r"]
   sdPl[sdPl<=0.1]=.1
   sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
   pPe={
     p1 <- which1 <- which(as.logical(edata[,5,]))
-    p1 <- sum(dbinom(idata[,5,][which1],1,p_Pe_pDet,log=TRUE))
+    p1 <- sum(dbinom(idata[,5,][which1],1,["p_Pe_pDet"],log=TRUE))
     p0 <- which0 <- which(!as.logical(edata[,5,]))
-    p0 <- sum(dbinom(idata[,5,][which0],1,p_Pe_pFalseDet,log=TRUE))
+    p0 <- sum(dbinom(idata[,5,][which0],1,["p_Pe_pFalseDet"],log=TRUE))
     p0+p1
 }
 mean(rgamma(1000,2,scale=1/3)) 2/3
@@ -460,12 +531,16 @@ var(rgamma(100000,2,3)) #2*(1/3)^2
 # var=shape/(rate^2)=shape*scale^2
 # shape=mean^2/var
 # scale = var/mean
-
-scale=(var/shape)^.5
-shape=shape^.5*mean/var^.5
-shape^.5=mean/var^.5
-scale=var^1.5/mean
-
+# rate = 1/scale
+# shape = mean*rate = mean*mean/var
+# scale=(var/shape)^.5
+# shape=shape^.5*mean/var^.5
+# shape^.5=mean/var^.5
+# scale=var^1.5/mean
+# p_pl_sd_r = var.5/mean = 1/shape^.5
+# 
+# rate = shape/
+# rate = p_pl_sd_r^2 = p_pl_var_r
 #
 # Initialisation of learning
 
