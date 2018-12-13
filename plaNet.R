@@ -354,7 +354,7 @@ p0=list(PaPa_rmax=10,PaPa_K=20,
      TxPa_min=15,TxPa_max=30,
      PrPa_min=3,
      PlPa_r=1,
-     PrPl_rperPr=.5,
+     PrPl_min=3,
      TxPl_min=10,TxPl_max=30,
      PaPl_r=-0.03,
      PlPl_r=2.5,
@@ -376,7 +376,7 @@ p_TxPa_min=p0["TxPa_min"]
 p_TxPa_max=p0["TxPa_max"]
 p_PrPa_min=p0["PrPa_min"]
 p_PlPa_r=p0["PlPa_r"]
-p_PrPl_rperPr=p0["PrPl_rperPr"]
+p_PrPl_min=p0["PrPl_min"]
 p_TxPl_min=p0["TxPl_min"]
 p_TxPl_max=p0["TxPl_max"]
 p_PaPl_r=p0["PaPl_r"]
@@ -421,39 +421,70 @@ edata[1:2,5,]<-0 # there is no pesticide before planting
 edata[,,1:3]
 
 # simulate true edata
-for (k in 1:dim(edata)[3]){
-  for (i in 3:dim(edata)[1]){
-    #Pe
-    edata[i,5,k]=edata[i-1,3,k]>p_PaPe
-    #Pl
-    a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
-                                                                   (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
-    if(a>p_PlPl_K){a=2}
-    if(a<0) {a=0}
-    edata[i,4,k]=a
-    #Pa
-    a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
-    edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
+
+#
+# Pe si rpois(Pa) > PaPe
+# Pl Pl*r where r= 1+exp(edata[i-1,2,k]-p$PrPl_min/(14-p$PrPl_min))+exp((edata[i-1,1,k]-p$TxPl_min)/(p$TxPl_max-p$TxPl_min))
+# Pl Pl*r where r= 1+p$PlPl_r*4*(edata[i-1,1,k]-p$TxPl_min)*(p$TxPl_max-edata[i-1,1,k])/(p$TxPl_max+p$TxPl_min)*(edata[i-1,1,k]>p$TxPl_min)*(edata[i-1,1,k]<p$TxPl_max)
+#                             ((.5+.5*(edata[i-1,2,k]-p$PrPl_min)/(4-p$PrPl_min))*(edata[i-1,2,k]>p$PrPl_min)*(edata[i-1,2,k]<4)+(edata[i-1,2,k]>=4))
+#                            (1-edata[,4,]/p$PlPl_K)
+#
+
+
+simulTrueEdata <- function(p,edata){
+  for (k in 1:dim(edata)[3]){
+    for (i in 3:dim(edata)[1]){
+      #Pe
+      edata[i,5,k]=rpois(edata[i-1,3,k])>p_PaPe
+      #Pl
+      edata[i,4,k]=edata[i-1,4,k]*rpois(edata[i-1,3,k])>p_PaPe
+      #Pa
+      a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*((edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max))*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r)
+      edata[i,3,k]=rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))
+    }
   }
+  edata
 }
 
-# save true ecosystem
-e0data <-edata
-edataTrue <- edata
-
+edataTrue <- simulTrueEdata(p0,edata)
+edataTrue[,,1]
 
 # simulate true idata
-idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
-  Pl=rgamma(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-  #if (Pl<0) Pl=0
-  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet)+rbinom(1,!edata[i,5,k],p_Pe_pFalseDet))
-})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+simulTrueIdata <- function(p,edata){
+  idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+    Pl=rgamma(1,edata[i,4,k],edata[i,4,k]*p$Pl_sd_r)
+    #if (Pl<0) Pl=0
+    c(T=rnorm(1,edata[i,1,k],p$T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p$Pe_pDet)+rbinom(1,!edata[i,5,k],p$Pe_pFalseDet))
+  })})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+  idata
+}
 
+
+
+# for the inference, simulate edata from idata
+simulEdataFromIdata <- function(p,idata){
+  n=dim(idata)[2]
+  idata[,1,] = rnorm(n=n,mean=round(idata[,1,]),sd=p$T_sd)
+  idata[,2,] = rpois(1,idata[,2,])
+  idata[,3,]  = rpois(1,idata[,3,])
+  idata[,4,]  = rgamma(n, shape=idata[,4,], scale = p$Pl_var_r)
+  idata[,5,] ={
+    p1 <- which1 <- which(as.logical(edata[,5,]))
+    p1 <- sum(dbinom(idata[,5,][which1],1,p$Pe_pDet,log=TRUE))
+    p0 <- which0 <- which(!as.logical(edata[,5,]))
+    p0 <- sum(dbinom(idata[,5,][which0],1,p$Pe_pFalseDet,log=TRUE))
+    p0+p1
+  }
+idata
+}
+
+
+idataTrue <- simulEdataFromIdata(p0,edata)
 # save true idata
 idataTrue <- idata
 
-Posterior <-  data.frame(runi=0,p_PaPa_rmax=0,p_TxPa_min=0,p_PrPa_min=0,p_PlPa_r=0,p_PrPl_rperPr=0,p_TxPl_min=0,
-                         p_PaPl_r=0,p_PlPl_r=0,p_PePa_r=0,p_PaPe=0,p_Pl_sd_r=0,p_T_sd=0,p_Pe_pDet=0,p_Pe_pFalseDet=0,prior=0,posterior=0)
+Posterior <-  data.frame(runi=0,PaPa_rmax=0,TxPa_min=0,PrPa_min=0,PlPa_r=0,PrPl_rperPr=0,TxPl_min=0,
+                         PaPl_r=0,PlPl_r=0,PePa_r=0,PaPe=0,Pl_sd_r=0,T_sd=0,Pe_pDet=0,Pe_pFalseDet=0,prior=0,posterior=0)
 
 Posterior=Posterior[-1,]
 runi=1
@@ -508,24 +539,14 @@ list(PaPa_rmax=exp({a={if(as.logical(rbinom(1,1,1/2))) log(p$PaPa_rmax+(15-5)*ra
 )}
 
 
-simul_edataFromidata <- function(idata){
-  T = rnorm(1,round(idata[,1,]),p["p_T_sd"]))),
-  pH = rpois(1,idata[,2,]),
-  pPa = rpois(1,idata[,3,]),
-  pPl = rgamma(n, shape=idata[,4,], scale = p_Pl_var_r)
-  sdPl={sdPl=edata[,4,]*["p_Pl_sd_r"]
-  sdPl[sdPl<=0.1]=.1
-  sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
-  pPe={
-    p1 <- which1 <- which(as.logical(edata[,5,]))
-    p1 <- sum(dbinom(idata[,5,][which1],1,["p_Pe_pDet"],log=TRUE))
-    p0 <- which0 <- which(!as.logical(edata[,5,]))
-    p0 <- sum(dbinom(idata[,5,][which0],1,["p_Pe_pFalseDet"],log=TRUE))
-    p0+p1
-}
 mean(rgamma(1000,2,scale=1/3)) 2/3
 var(rgamma(100000,2,3)) #2*(1/3)^2 
 
+# shape = k
+# scale = theta
+# mean = k theta
+# var = k theta^2
+# k= 9 theta = 0.5 mean = 4.5 var = 
 # gamma
 # mean=shape/rate=shape*scale
 # var=shape/(rate^2)=shape*scale^2
