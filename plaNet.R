@@ -359,7 +359,7 @@ p0=list(PaPa_rmax=10,PaPa_K=20,
      PaPl_r=-0.03,
      PlPl_r=2.5,
      PlPl_K=2,
-     PlPl_sd=.1,
+     PlPl_var_r=0.03^2,
      PePa_r=0.1,
      PaPe=1.5,
      Pl_var_r=0.05^2,
@@ -382,7 +382,7 @@ p_TxPl_max=p0["TxPl_max"]
 p_PaPl_r=p0["PaPl_r"]
 p_PlPl_r=p0["PlPl_r"]
 p_PlPl_K=p0["PlPl_K"]
-p_PlPl_sd=p0["PlPl_sd"]
+p_PlPl_var_r=p0["PlPl_var_r"]
 p_PePa_r=p0["PePa_r"]
 p_PaPe=p0["PaPe"]
 #ecoindic
@@ -435,9 +435,9 @@ simulTrueEdata <- function(p,edata){
   for (k in 1:dim(edata)[3]){
     for (i in 3:dim(edata)[1]){
       #Pe
-      edata[i,5,k]=rpois(edata[i-1,3,k])>p_PaPe
+      edata[i,5,k]=rpois(1,lambda=edata[i-1,3,k])>p_PaPe
       #Pl
-      edata[i,4,k]=edata[i-1,4,k]*rpois(edata[i-1,3,k])>p_PaPe
+      edata[i,4,k]=edata[i-1,4,k]*rpois(1,edata[i-1,3,k])>p_PaPe
       #Pa
       a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*((edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max))*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r)
       edata[i,3,k]=rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))
@@ -445,13 +445,41 @@ simulTrueEdata <- function(p,edata){
   }
   edata
 }
+edataTrue=simulTrueEdata(p0,edata)
+# i;k
+simulTrueEdata <- function(p,edata){
+  aperm(array(unlist(lapply(1:dim(edata)[3], function(k) {lapply(1:dim(edata)[1], function (i) {
+    Pe={if (edata[i-1,3,k]!=0) (rpois(edata[i-1,3,k]) > p$PaPe) else FALSE}
+    c(Pe=Pe,
+      Pl=edata[i-1,4,k]+{if ((edata[i-1,2,k]>p$PrPl_min)*(edata[i-1,2,k]<4)*(edata[i-1,1,k]>p$TxPl_min)*(edata[i-1,1,k]<p$TxPl_max)) {p$PlPl_r*4*(edata[i-1,1,k]-p$TxPl_min)*(p$TxPl_max-edata[i-1,1,k])/(p$TxPl_max+p$TxPl_min)*
+          ((.5+.5*(edata[i-1,2,k]-p$PrPl_min)/(4-p$PrPl_min))+(edata[i-1,2,k]>=4))*
+          (1-edata[i-1,4,k]/p$PlPl_K)*edata[i-1,4,k]} else 0},
+      Pa= {a = (edata[i-1,3,k]==0)+(!Pe+Pe*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*(edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max)*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r);
+      rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))})
+    }
+    )})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+}
+simulTrueEdata <- function(p,edata){
+  aperm(array(unlist(lapply(1:dim(edata)[3], function(k) {lapply(1:dim(edata)[1], function (i) {
+    Pe={if (edata[i-1,3,k]!=0) (rpois(edata[i-1,3,k]) > p$PaPe) else FALSE}
+    c(Pe=Pe,
+      Pl=rgamma(1,shape=1+(exp(edata[i-1,2,k]-p$PrPl_min/(14-p$PrPl_min))+exp((edata[i-1,1,k]-p$TxPl_min)/(p$TxPl_max-p$TxPl_min)))*p$PlPl_var_r,rate = p$PlPl_var_r),
+      Pa= {a = (edata[i-1,3,k]==0)+(!Pe+Pe*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*(edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max)*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r);
+      rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))})})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+}
+# Pe si rpois(Pa) > PaPe
+# Pl Pl*r where r= 1+exp(edata[i-1,2,k]-p$PrPl_min/(14-p$PrPl_min))+exp((edata[i-1,1,k]-p$TxPl_min)/(p$TxPl_max-p$TxPl_min))
+# Pl Pl*r where r= 1+p$PlPl_r*4*(edata[i-1,1,k]-p$TxPl_min)*(p$TxPl_max-edata[i-1,1,k])/(p$TxPl_max+p$TxPl_min)*(edata[i-1,1,k]>p$TxPl_min)*(edata[i-1,1,k]<p$TxPl_max)
+#                             ((.5+.5*(edata[i-1,2,k]-p$PrPl_min)/(4-p$PrPl_min))*(edata[i-1,2,k]>p$PrPl_min)*(edata[i-1,2,k]<4)+(edata[i-1,2,k]>=4))
+#                            (1-edata[,4,]/p$PlPl_K)
+edataTrue=simulTrueEdata(p0,edata)
 
 edataTrue <- simulTrueEdata(p0,edata)
 edataTrue[,,1]
 
 # simulate true idata
 simulTrueIdata <- function(p,edata){
-  idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(3:dim(edata)[1], function (i) {
     Pl=rgamma(1,edata[i,4,k],edata[i,4,k]*p$Pl_sd_r)
     #if (Pl<0) Pl=0
     c(T=rnorm(1,edata[i,1,k],p$T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p$Pe_pDet)+rbinom(1,!edata[i,5,k],p$Pe_pFalseDet))
@@ -553,6 +581,8 @@ var(rgamma(100000,2,3)) #2*(1/3)^2
 # shape=mean^2/var
 # scale = var/mean
 # rate = 1/scale
+
+# shape * scale = mean => shape = mean * rate 
 # shape = mean*rate = mean*mean/var
 # scale=(var/shape)^.5
 # shape=shape^.5*mean/var^.5
