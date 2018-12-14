@@ -430,25 +430,37 @@ edata[,,1:3]
 #                            (1-edata[,4,]/p$PlPl_K)
 #
 
-
+e0=edata
 simulTrueEdata <- function(p,edata){
   for (k in 1:dim(edata)[3]){
     for (i in 3:dim(edata)[1]){
       #Pe
-      edata[i,5,k]=rpois(1,lambda=edata[i-1,3,k])>p_PaPe
+      edata[i,5,k]={if (edata[i-1,3,k]!=0) (rpois(1,edata[i-1,3,k]) > p$PaPe) else FALSE}
       #Pl
-      edata[i,4,k]=edata[i-1,4,k]*rpois(1,edata[i-1,3,k])>p_PaPe
+      edata[i,4,k]=rgamma(1,shape=(edata[i-1,4,k]+{if ((edata[i-1,2,k]>p$PrPl_min)*(edata[i-1,2,k]<4)*(edata[i-1,1,k]>p$TxPl_min)*(edata[i-1,1,k]<p$TxPl_max)) {p$PlPl_r*4*(edata[i-1,1,k]-p$TxPl_min)*(p$TxPl_max-edata[i-1,1,k])/(p$TxPl_max+p$TxPl_min)*
+          ((.5+.5*(edata[i-1,2,k]-p$PrPl_min)/(4-p$PrPl_min))+(edata[i-1,2,k]>=4))*
+          (1-edata[i-1,4,k]/p$PlPl_K)*edata[i-1,4,k]} else 0})/p$PlPl_var_r,scale=p$PlPl_var_r)
       #Pa
-      a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*((edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max))*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r)
-      edata[i,3,k]=rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))
+      edata[i,3,k]={a = (edata[i-1,3,k]==0)+(!Pe+Pe*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*(edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max)*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r);
+      rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))}
     }
   }
   edata
 }
 edataTrue=simulTrueEdata(p0,edata)
+
 # i;k
+
+lapply(1:dim(edata)[3], function(k) {lapply(3:dim(edata)[1], function (i) {
+  {if (edata[i-1,3,k]!=0) (rpois(edata[i-1,3,k]) > p$PaPe) else FALSE}})})
+lapply(1:dim(edata)[3], function(k) {lapply(3:dim(edata)[1], function (i) {
+  edata[i,3,k]})})
+
+b=array(unlist(lapply(1:dim(edata)[3], function(k) {lapply(3:dim(edata)[1], function (i) {
+  {i-1}})})),dim=c(dim(edata)[c(1,3)]))
+
 simulTrueEdata <- function(p,edata){
-  aperm(array(unlist(lapply(1:dim(edata)[3], function(k) {lapply(1:dim(edata)[1], function (i) {
+  aperm(array(unlist(lapply(1:dim(edata)[3], function(k) {lapply(3:dim(edata)[1], function (i) {
     Pe={if (edata[i-1,3,k]!=0) (rpois(edata[i-1,3,k]) > p$PaPe) else FALSE}
     c(Pe=Pe,
       Pl=edata[i-1,4,k]+{if ((edata[i-1,2,k]>p$PrPl_min)*(edata[i-1,2,k]<4)*(edata[i-1,1,k]>p$TxPl_min)*(edata[i-1,1,k]<p$TxPl_max)) {p$PlPl_r*4*(edata[i-1,1,k]-p$TxPl_min)*(p$TxPl_max-edata[i-1,1,k])/(p$TxPl_max+p$TxPl_min)*
@@ -459,6 +471,8 @@ simulTrueEdata <- function(p,edata){
     }
     )})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
 }
+edataTrue=simulTrueEdata(p0,edata)
+
 simulTrueEdata <- function(p,edata){
   aperm(array(unlist(lapply(1:dim(edata)[3], function(k) {lapply(1:dim(edata)[1], function (i) {
     Pe={if (edata[i-1,3,k]!=0) (rpois(edata[i-1,3,k]) > p$PaPe) else FALSE}
