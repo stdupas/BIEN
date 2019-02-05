@@ -1,336 +1,254 @@
 setwd("/home/dupas/PlaNet/")
 setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
 
-## PlaNet
-
-## Proof of concept
-# ecolink
-#     T	H	Pa	Pl	Pe
-# T			x	x
-# H			x	x
-# Pa			x	x	x
-# Pl			x	x
-# Pe			x
-
-# indlink
-#     iT	iH	iPa	iPl	iPe
-# iT	 x
-# iH			x
-# iPa			     x
-# iPl			        x
-# iPe			            x
-setwd("/home/dupas/PlaNet/")
-ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
-indicVar=c("iT","iPr","iPa","iPl","iPe")
-
-library(raster)
-
-ecoLink <- t(matrix(as.logical(c(0,0,1,1,0,
-                  0,0,1,1,0,
-                  0,0,1,1,1,
-                  0,0,1,1,0,
-                  0,0,1,0,0)),nrow=5, ncol =5,dimnames=list(ecoVar,ecoVar)))
-dimnames(ecoLink)=list(ecoVar,ecoVar)
-
-ecoLinkTime = t(matrix((c(0,0,1,1,0,
-                          0,0,2,1,0,
-                          0,0,1,1,1,
-                          0,0,1,1,0,
-                          0,0,0,0,0)),nrow=5,ncol=5,dimnames=list(ecoVar,ecoVar)))
-dimnames(ecoLinkTime)=list(ecoVar,ecoVar)
-
-indicLink <- as.logical(diag(5))
-dimnames(indicLink)=list(ecoVar,ecoVar)
-
-# data is a 3 dim array: dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time
-
-setClass("Data",
-         contains="array",
-         validity=function(object){
-           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
-         }
-         )
-#save(dataf,file = "yield.data.RData")
-setwd()
-
-load("yield.data.RData")
-dataf[,,1]
-load(file = "yield.data.RData")
-idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
-dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
-edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
-dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
-edata[,3,]<-NA
-edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
-edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
-edata[1:2,3,]<-0 # there is no parasite before planting
-edata[1:2,5,]<-0 # there is no pesticide before planting
-edata[,,1:3]
-
-p=list(PaPa=c(rmax=10,K=20),TxPa=c(min=15,max=30),PrPa=c(min=3),PlPa=c(r=1),PrPl=c(rperPr=.5),TxPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=2.5,K=2,sd=.1),PePa=c(r=0.1),PaPe=c(thr=1.5))
-names(p)
-
-
-#
-# Simulating ecosystem history
-#
-
-p_PaPa_rmax=10;p_PaPa_K=20
-p_TxPa_min=15;p_TxPa_max=30
-p_PrPa_min=3
-p_PlPa_r=1
-p_PrPl_rperPr=.5
-p_TxPl_min=10;p_TxPl_max=30
-p_PaPl_r=-0.03
-p_PlPl_r=2.5;p_PlPl_K=2;p_PlPl_sd=.1
-p_PePa_r=0.1
-p_PaPe=1.5
-p_Pl_sd_r=0.05
-p_T_sd=0.3
-p_Pe_pDet=.8
-
-
-# simulating ecosystem 
-
-# using lapply
-
-tmp=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(3:dim(edata)[1], function (i) {
-  Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
-                                                                 (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
-  if(Pl>p_PlPl_K){Pl=2}
-  if(Pl<0) {Pl=0}
-  Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
-  c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
-    Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
-})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
-
-ed=edata
-for(k in 1:dim(edata)[3]) for (i in 3:dim(edata)[1]){
-  Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
-                                                                  (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
-  if(Pl>p_PlPl_K){Pl=2}
-  if(Pl<0) {Pl=0}
-  Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
-  c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
-    Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
-  ed[i,3:5,k]=c(Pa,Pl,(edata[i-1,3,k]>p_PaPe))
-}
-
-Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
-                                                                (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
-if(Pl>p_PlPl_K){Pl=2}
-if(Pl<0) {Pl=0}
-Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
-c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
-  Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
-
-#
-# simulating ecosystem good one
-#
-
-for (k in 1:dim(edata)[3]){
-  for (i in 3:dim(edata)[1]){
-    #Pe
-    edata[i,5,k]=edata[i-1,3,k]>p_PaPe
-    #Pl
-    a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
-                                                                   (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
-    if(a>p_PlPl_K){a=2}
-    if(a<0) {a=0}
-    edata[i,4,k]=a
-    #Pa
-    a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
-    edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
-  }
-}
-
-#
-# Calculating probability of ecosystem model
-#
-
-dims=dim(edata)
-for(k in 1:dims[3]) for (i in 3:dims[1]){
-
-  }
-
-idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
-  Pl=pgamma(1,shape=edata[i,4,k],rate=p_Pl_var_r)
-  if (Pl<0) Pl=0
-  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
-})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
-
-
-
-load(file = "edata.RData")
-n=length(edata[,1,])
-
-simulate idata from edata
-
-#Pe
-  idata[,5,]=(edata[,5,])*rbinom(n,1,p_Pe_pDet)
-#Pl
-  idata[,4,]=rgamma(n,edata[,4,],rate=p_Pl_var_r)
-#Pa
-  idata[,3,]=rpois(n,edata[,3,])
-#T
-  idata[,1,]=rnorm(n,edata[,1,],p_T_sd)
-#Pr
-  idata[,2,]=rpois(n,edata[,2,])
-
-#for (k in 1:dim(edata)[3]){
-#	for (i in 3:dim(edata)[1]){
-#Pe
-#  if (edata[i,5,k]) idata[i,5,k]=rbinom(1,1,p_Pe_pDet)
-#Pl
-#  idata[i,4,k]=rgamma(length(edata[,4,]),edata[,4,],rate=p_Pl_var_r)
-#rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-#  if (idata[i,4,k]<0) idata[i,4,k]=0
-#Pa
-#  idata[i,3,k]=rpois(1,edata[i,3,k])
-#T
-#  idata[i,1,k]=rnorm(1,edata[i,1,k],p_T_sd)
-#Pr
-#  idata[i,2,k]=rpois(1,edata[i,2,k])
-#  }
-#}
-
-#
-# Simulation of indicator data from edata good one
-#
-
-idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
-Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-if (Pl<0) Pl=0
-c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
-})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
-
-#
-# Simulation of edata from idata
-#
-# p(i/e)=p(e/i)*p(i)/p(e)
-# p(e/i)=p(i/e)*p(e)/p(i)
-# p(H)=dgamma3(x,1,5.749)
-# P(T)=dnorm(1,10,4)*.55+dnorm(1,21,3)*.45
-# P(Pa)=dgamma(x+1,.2,3)
-# P(Pl)=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-# plot(dnorm(1:40,10,4)*.6+dnorm(1:40,4)*.4)
-# ?dnorm
-library(FAdist)
-.1*1.5^8
-par(mfrow=c(1,2))
-hist(idata[,4,])
-plot((0:10)/5,dexp((1:11),1.3,1.5))
-plot(-5:35,dnorm(-5:35,10,4)*.55+dnorm(-5:35,21,3)*.45)
-hist(rpois(length(idata[,2,]),.1))
-     plot(1:20,dgamma3(1:20,1,2))
-     pgamma3(1,1,5.749)
-     sum(edata[,2,]<1)/length(edata[,2,])
-     pgamma3(2,1,5.749)
-     sum((edata[,2,]<2)&(edata[,2,]>1))/length(idata[,2,])
-     ?rgamma3
-dimnames(idata)[[2]]
-idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
-  Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
-  if (Pl<0) Pl=0
-  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
-})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
-
-
-#
-# Probability of indicator data
-#
-
-hist(edata[,4,])
-idata
-log(exp(1))
-pT <- sum(dnorm(idata[,1,],edata[,1,],p_T_sd,log=TRUE))
-pH <- sum(dpois(idata[,2,],edata[,2,],log=TRUE)))
-pPa <- sum(dpois(idata[,3,],edata[,3,],log=TRUE))
-sdPl=edata[,4,]*p_Pl_sd_r
-sdPl[sdPl<=0.1]=.1
-pPl <- sum(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl,log=TRUE))
-pPe <- dbinom(idata[,5,],1,prob=edata[,5,]*p_Pe_pDet,log=TRUE)
-
-pIndic <- sum(c(pT = sum(log(dnorm(idata[,1,],edata[,1,],p_T_sd))),
-                 pH = sum(log(dpois(idata[,2,],edata[,2,]))),
-                 pPa = sum(log(dpois(idata[,3,],edata[,3,]))),
-                 sdPl={sdPl=edata[,4,]*p_Pl_sd_r
-                 sdPl[sdPl<=0.1]=.1
-                 sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
-                 pPe=sum(dbinom(idata[,5,],1,prob=edata[,5,]*p_Pe_pDet,log=TRUE))
-))
-edata[1:8,,1]
-idata[1:8,,1]
-
-p_PaPa_rmax=10
-p_PaPa_K=20
-p_TxPa_min=15
-p_TxPa_max=30
-p_PrPa_min=3
-p_PlPa_r=1
-p_PrPl_rperPr=.5
-p_TxPl_min=10
-p_TxPl_max=30
-p_PaPl_r=-0.03
-p_PlPl_r=2.5
-p_PlPl_K=2
-p_PlPl_sd=.1
-p_PePa_r=0.1
-p_PaPe=1.5
-p_Pl_sd_r=0.05
-p_T_sd=0.3
-p_Pe_pDet=.8
-p_Pe_pFalseDet=.005
-
-
-#ecosysHistory
-p0 = c(p_PaPa_rmax=exp(runif(1,log(5),log(15))),p_PaPa_K=exp(runif(1,log(15),log(25))),
-       p_TxPa_min=runif(1,10,20),p_TxPa_max=runif(1,25,35),
-       p_PrPa_min=runif(1,1.5,4),p_PlPa_r=runif(1,.7,1.5),
-       p_PrPl_rperPr=runif(1,.3,.7),p_TxPl_min=runif(1,5,14),p_TxPl_max=runif(1,26,32),
-       p_PaPl_r=exp(runif(1,log(0.015),log(0.045))),
-       p_PlPl_r=exp(runif(1,log(1.8),log(3.5))),p_PlPl_K=exp(runif(1,log(1.5),log(3))),p_PlPl_sd=runif(1,.07,.15),
-       p_PePa_r=exp(runif(1,log(.06),log(.15))),
-       p_PaPe=runif(1,1.3,1.9),
-       #ecoindic
-       p_Pl_sd_r=exp(runif(1,log(.03),log(.07))),
-       p_T_sd=runif(1,.2,.5),
-       p_Pe_pDet=runif(1,.6,.99),
-       p_Pe_pFalseDet=exp(runif(1,log(.001),log(.02)))
-)
-
-#
-# Algorithm
-#
-setwd("/home/dupas/PlaNet/")
-ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
-indicVar=c("iT","iPr","iPa","iPl","iPe")
-load("yield.data.RData")
-dataf[,,1]
-load(file = "yield.data.RData")
-
-setClass("Data",
-         contains="array",
-         validity=function(object){
-           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
-         }
-)
-
-idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
-dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
-edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
-dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
-edata[,3,]<-NA
-edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
-edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
-edata[1:2,3,]<-0 # there is no parasite before planting
-edata[1:2,5,]<-0 # there is no pesticide before planting
-edata[,,1:3]
-
 #library(raster)
 
 #edata
 #idata
+#
+# New version 15-12-2018
+# ecolearn model
+# variables = vector of variale names
+# dada = array of ecosystem dynamics including indicator data and interacting ecosystem variables
+#         in dim 1 is time, 
+#         in dim 2 are ecosystem variables, 
+#         in dim 3 are repetitions
+# parameter = "list" of "numeric"
+# prior = "list" of prior finstions
+# egde = list of (son="integer",indiclentgh="integer",ecolength="integer",
+#                 parentfull="list of funciton",delayfull="integer",
+#                 parenteco="integer",delayeco="integer",dfullfun="list of function",
+#                 rifun="list of function",defun="list of function"))   
+# where 
+#   - sun are the dependent variables index at each time step 
+#   - parent are independent variables index
+#   - delay for parent time dependance 
+#   - func is the function to be used for each parent
+#   - residual is the residual to be used for each sun
+
+#
+# Proof of concept
+#
+
+# set data array for true data simulation using climatic data
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+indicVar=c("iTx","iPr","iPa","iPl","iPe")
+variables = c(ecoVar,indicVar)
+load(file = "climdata.RData")
+data = array(NA,dim=c(dim(climdata)[1],10,dim(climdata)[3]),dimnames=list(dimnames(climdata)[[1]],c(indicVar,ecoVar),dimnames(climdata)[[3]]))
+data[,c("iTx","iPr"),] <- climdata
+data[1,"iPl",]<-0;data[2,"iPl",]<-0.01 # planting occurs in february
+data[1:2,"iPa",]<-0 # there is no parasite before planting
+data[1:2,"iPe",]<-0 # there is no pesticide before planting
+data[,,1]
+
+#
+# definition of true parameters
+#
+
+# The model : The model is a discret ecossytem model represented as a temporal dynamic graph 
+# where value of each variable depend on variabels before, not necesarily one time step before
+# but from zero to a number of time step before
+# We distinguish eco variables and indic variables. "eco" variables are those involved in the ecological temporal effects. 
+# "indic" variables are those determined by the sampling of ecological variables.
+#
+# Definition of the graph:
+# nodes = eco and indicator variables, each is given an integer index from one to n
+# edges = contains information of the temporal dynamic graph (qualitative links and quantitative functions and parameters)
+# egdes = list of son="integer",
+#                 indiclentgh="integer",
+#                 ecolength="integer",
+#                 parentfun="list of function", # index of the parents for each son, 
+#                 delay="integer", # delay of the parent for each son as a list of integer and probability,
+#                 parenteco="integer"  
+#                 delayeco="integer",
+#                 dfullfun="list of function",
+#                 rifun="list of function",defun="list of function"))   
+# where 
+#   - son are the dependent variables at each time step, represented by their integer index
+#   - parent are independent variables index
+#   - delay for parent time dependance 
+#   - defun is the function calulating the probality of a son knowing the parents in the ecosystem model
+#   - rifun is the function sampling an ecosystem variable knowing the indicator
+#
+"defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
+"defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
+
+setClass("parameter",
+         contains="list",
+         slot = c(eco="integer",indic="integer"),
+         validity=function(object){
+           if (!all(lapply(object,class)=="numeric")) stop("error in parameter construction : should be a list of numeric")
+         }
+) 
+
+object=p = new("parameter",
+        list(
+          PaPa_rmax=10,
+          PaPa_K=20,
+          TxPa_min=15,
+          TxPa_max=30,
+          PrPa_min=3,
+          PlPa_r=1,
+          PrPl_min=3,
+          TxPl_min=10,
+          TxPl_max=30,
+          PaPl_r=-0.03,
+          PlPl_r=2.5,
+          PlPl_K=2,
+          PlPl_var_r=0.03^2,
+          PePa_r=0.1,
+          PaPe=1.5,
+          T_sd=0.3,
+          Pr_var_r=0.05^2,
+          Pa_sample_r=0.05,
+          Pl_var_r=0.05^2,
+          Pe_pDet=.8,
+          Pe_pFalseDet=.005),
+        eco = 1:15,
+        indic=16:21)
+
+setMethod("subset",
+          signature="parameter",
+          definition= function(x,type="index",index){
+            switch(type,
+                   eco={pEco<-lapply(x@eco,function(i){x[[i]]})
+                   names(pEco) <- names(x)[x@eco]
+                   new("parameter",pEco,eco=1:length(x@eco),indic=integer(0))
+                   },
+                   indic={pIndic=lapply(x@indic,function(i){x[[i]]})
+                   names(pIndic)=names(x)[x@indic]
+                   new("parameter",pIndic,eco=integer(0),
+                       indic=1:length(x@indic))},
+                   index={pIndex=lapply(index, function(i){x[[i]]})
+                   names(pIndex)=names(x)[index]
+                   new("parameter",pIndex)
+                   })}
+)
+a=subset(x=p,type="eco")          
+subset(x=p,type="indic")          
+subset(x=p,index=1:5)        
+
+setClass("edge",
+         contains= "list",
+         validity = function(object){
+           if (!all(names(object)[order(names(object))] %in% c("pAll","pIndic","pEco","son","indiclentgh","ecolength", "parenteco","parentindic","delayeco","delayindic","pfuneco","rfuneco", "pfunindic2eco","rfunindic2eco","pfuneco2indic"))) stop("edge class slots should be among 'pAll','pIndic','pEco','son','indiclentgh','ecolength', 'parenteco','parentindic','delayeco','delayindic','pfuneco','rfuneco', 'pfunindic2eco','rfunindic2eco','pfuneco2indic'")
+         })
+
+EdgeModel = new("edge",list(
+  pAll=p,
+  pIndic=subset(p,type="indic"),
+  pEco=subset(p,type="eco"),
+  son = 6:10,
+  indiclentgh = as.integer(5),
+  ecolength = as.integer(5), 
+  #parentfull = list(as.integer(1),as.integer(2),as.integer(c(3,6,7,8,9,10)),as.integer(c(4,6,7,9)),as.integer(c(8))),
+  #delayfull = list(as.integer(0),as.integer(0),as.integer(c(0,2,2,2,2,2)),as.integer(c(0,1,1,1)),as.integer(c(0))),
+  parenteco = list(NA,NA,as.integer(c(6,7,8,9,10)),as.integer(c(6,7,9)),as.integer(c(8))),
+  parentindic=lapply(rep(0,5),as.integer),
+  delayeco = list(NA,NA,lapply(list(2,2,2,2,2),as.integer),lapply(list(1,1,1),as.integer),lapply(list(0),as.integer)),
+  delayindic = list(as.integer(rep(as.integer(0),5))),
+  pfuneco = list(NA,
+                 NA,
+                 function(p,x,y){a = (x[4]==0)+(!x[6]+x[6]*p$PePa_r)*x[4]*p$PaPa_rmax*(x[2]>p$TxPa_min)*(x[2]<p$TxPa_max)*
+                   (x[2]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(x[3]>p$PrPa_min)*(x[4]*p$PlPa_r)
+                 dpois(y[1],lambda = a*(p$PaPa_K-a)/p$PaPa_K)},
+                 function(p,x){dgamma(y,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
+                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
+                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
+                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)},
+                 function(p,x){dgamma(y,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
+                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
+                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
+                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)}),
+  rfuneco = list(NA,
+                 NA,
+                 function(p,x){a = (x[4]==0)+(!x[6]+x[6]*p$PePa_r)*x[4]*p$PaPa_rmax*(x[2]>p$TxPa_min)*(x[2]<p$TxPa_max)*
+                   (x[2]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(x[3]>p$PrPa_min)*(x[4]*p$PlPa_r)
+                 rpois(1,lambda = a*(p$PaPa_K-a)/p$PaPa_K)},
+                 function(p,x){rgamma(1,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
+                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
+                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
+                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)},
+                 function(p,x){rgamma(1,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
+                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
+                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
+                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)}), 
+  pfunindic2eco = list(function(p,x) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
+                       function(p,x) {dgamma(y[2],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                       function(p,x) {dpois(y,x[1]/p$Pa_sample_r)},
+                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
+  rfunindic2eco = list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
+                       function(p,x) {rgamma(1,shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                       function(p,x) {rpois(1,x[1]/p$Pa_sample_r)},
+                       function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                       function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
+  pfuneco2indic = list(function(p,x) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
+                       function(p,x) {dgamma(y[2],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                       function(p,x) {dpois(y,x[1]/p$Pa_sample_r)},
+                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)})
+))
+
+
+is.list.of.function <- function(x){
+  all(lapply(x,class)=="function")
+}
+is.list.of.numeric <- function(x){
+  all(lapply(x,class)=="numeric")
+}
+
+setClass("prior",
+         contains = "list",
+         slot = c(priorParam="list"),
+         validity = function(object){
+           if (!is.list.of.function(object)) stop("error when construction 'prior'. It was not a list of functions")
+           if (any(lapply(object@priorParam,is.list.of.numeric))) stop("error when construction 'prior'. The slot priorParam was not a list of numeric")
+         }
+         )
+
+pr<-new("prior",list(PaPa_rmax=10,PaPa_K,p$TxPa_min=15,
+                     TxPa_max=30,PrPa_min=3,PlPa_r,
+                     Pr_var_r=list(logunif2,.3,.7),
+                     PrPl_min,TxPl_min,TxPl_max,
+                     PaPl_r=-0.03,PlPl_r,PlPl_K,
+                     PlPl_var_r,PePa_r=.1,p$PaPe
+                     T_sd=list(runif,.2,5),Pl_var_r=.03,
+                     Pa_sample_r=.1, 
+                     
+                     
+                     
+                    ))
+names(p)
+setMethod("samplePrior",
+          signature = "prior",
+)
+
+p_Pe_pDet=.8
+p_Pe_pFalseDet=.005
+
+setClass("modelSet",
+         contains = "edge",
+         slot = c(data="array", parameters = "parameter", prior = "pior", posterior = "posterior"),
+         validity = function(object){
+           
+         })
+
+
+
+
+#
+# SImulation of true data
+#
+
+#
+# in this first example indicators are very good
+# (Tx = iTx and Pr = iPr, Pa = iPa, Pl = iPl, Pe=iPe )
+#
+
+data[,c("Tx","Pr","Pa","Pl","Pe"),] <- data[,c("iTx","iPr","iPa","iPl","iPe"),]
+data[,,1]
 
 
 
@@ -414,8 +332,8 @@ dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimname
 edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
 dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
 edata[,3,]<-NA
-edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
-edata[1,4,]<-0;edata[2,4,]<-0.01 # planting offucrs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting occurs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting occurs in february
 edata[1:2,3,]<-0 # there is no parasite before planting
 edata[1:2,5,]<-0 # there is no pesticide before planting
 edata[,,1:3]
@@ -1672,3 +1590,335 @@ exponential <- function(param=a,variable=x){exp(param*variable)}
 functions <- setClass("functions",
                       slots=c(parameters="character",)
                       ) 
+
+
+##
+## Old stuff
+##
+
+
+## PlaNet
+
+## Proof of concept
+# ecolink
+#     T	H	Pa	Pl	Pe
+# T			x	x
+# H			x	x
+# Pa			x	x	x
+# Pl			x	x
+# Pe			x
+
+# indlink
+#     iT	iH	iPa	iPl	iPe
+# iT	 x
+# iH			x
+# iPa			     x
+# iPl			        x
+# iPe			            x
+setwd("/home/dupas/PlaNet/")
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+indicVar=c("iT","iPr","iPa","iPl","iPe")
+
+library(raster)
+
+ecoLink <- t(matrix(as.logical(c(0,0,1,1,0,
+                                 0,0,1,1,0,
+                                 0,0,1,1,1,
+                                 0,0,1,1,0,
+                                 0,0,1,0,0)),nrow=5, ncol =5,dimnames=list(ecoVar,ecoVar)))
+dimnames(ecoLink)=list(ecoVar,ecoVar)
+
+ecoLinkTime = t(matrix((c(0,0,1,1,0,
+                          0,0,2,1,0,
+                          0,0,1,1,1,
+                          0,0,1,1,0,
+                          0,0,0,0,0)),nrow=5,ncol=5,dimnames=list(ecoVar,ecoVar)))
+dimnames(ecoLinkTime)=list(ecoVar,ecoVar)
+
+indicLink <- as.logical(diag(5))
+dimnames(indicLink)=list(ecoVar,ecoVar)
+
+# data is a 3 dim array: dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time
+
+setClass("Data",
+         contains="array",
+         validity=function(object){
+           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
+         }
+)
+#save(dataf,file = "yield.data.RData")
+setwd()
+
+load("yield.data.RData")
+dataf[,,1]
+load(file = "yield.data.RData")
+idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
+edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
+edata[,3,]<-NA
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting occurs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting occurs in february
+edata[1:2,3,]<-0 # there is no parasite before planting
+edata[1:2,5,]<-0 # there is no pesticide before planting
+edata[,,1:3]
+
+p=list(PaPa=c(rmax=10,K=20),TxPa=c(min=15,max=30),PrPa=c(min=3),PlPa=c(r=1),PrPl=c(rperPr=.5),TxPl=c(min=10,max=30),PaPl=c(r=-0.03),PlPl=c(r=2.5,K=2,sd=.1),PePa=c(r=0.1),PaPe=c(thr=1.5))
+names(p)
+
+
+#
+# Simulating ecosystem history
+#
+
+p_PaPa_rmax=10;p_PaPa_K=20
+p_TxPa_min=15;p_TxPa_max=30
+p_PrPa_min=3
+p_PlPa_r=1
+p_PrPl_rperPr=.5
+p_TxPl_min=10;p_TxPl_max=30
+p_PaPl_r=-0.03
+p_PlPl_r=2.5;p_PlPl_K=2;p_PlPl_sd=.1
+p_PePa_r=0.1
+p_PaPe=1.5
+p_Pl_sd_r=0.05
+p_T_sd=0.3
+p_Pe_pDet=.8
+
+
+# simulating ecosystem 
+
+# using lapply
+
+tmp=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(3:dim(edata)[1], function (i) {
+  Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                  (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+  if(Pl>p_PlPl_K){Pl=2}
+  if(Pl<0) {Pl=0}
+  Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+  c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
+    Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+ed=edata
+for(k in 1:dim(edata)[3]) for (i in 3:dim(edata)[1]){
+  Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                  (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+  if(Pl>p_PlPl_K){Pl=2}
+  if(Pl<0) {Pl=0}
+  Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+  c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
+    Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
+  ed[i,3:5,k]=c(Pa,Pl,(edata[i-1,3,k]>p_PaPe))
+}
+
+Pl=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+if(Pl>p_PlPl_K){Pl=2}
+if(Pl<0) {Pl=0}
+Pa=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+c(Pa=rpois(1,Pa*(Pa<p_PaPa_K)+p_PaPa_K*(Pa>=p_PaPa_K)),
+  Pl=Pl,Pe=(edata[i-1,3,k]>p_PaPe))
+
+#
+# simulating ecosystem good one
+#
+
+for (k in 1:dim(edata)[3]){
+  for (i in 3:dim(edata)[1]){
+    #Pe
+    edata[i,5,k]=edata[i-1,3,k]>p_PaPe
+    #Pl
+    a=((edata[i-1,1,k]>p_TxPl_min)*0.1)+edata[i-1,4,k]*p_PlPl_r*((((1+edata[i-1,2,k])*p_PrPl_rperPr)*(edata[i-1,1,k]>p_TxPl_min))*
+                                                                   (1+(T-p_TxPl_min)/(p_TxPl_max-p_TxPl_min))*(edata[i-1,1,k]<p_TxPl_max))+edata[i-1,3,k]*(p_PaPl_r)
+    if(a>p_PlPl_K){a=2}
+    if(a<0) {a=0}
+    edata[i,4,k]=a
+    #Pa
+    a=(edata[i-1,3,k]==0)+((!edata[i,5,k])+edata[i,5,k]*p_PePa_r)*edata[i-1,3,k]*p_PaPa_rmax*((edata[i-1,1,k]>p_TxPa_min)*(edata[i-1,1,k]<p_TxPa_max))*(edata[i-1,1,k]-p_TxPa_min)/(p_TxPa_max-p_TxPa_min)*(edata[i-2,2,k]>p_PrPa_min)*(edata[i-1,4,k]*p_PlPa_r)
+    edata[i,3,k]=rpois(1,a*(a<p_PaPa_K)+p_PaPa_K*(a>=p_PaPa_K))
+  }
+}
+
+#
+# Calculating probability of ecosystem model
+#
+
+dims=dim(edata)
+for(k in 1:dims[3]) for (i in 3:dims[1]){
+  
+}
+
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  Pl=pgamma(1,shape=edata[i,4,k],rate=p_Pl_var_r)
+  if (Pl<0) Pl=0
+  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+
+
+load(file = "edata.RData")
+n=length(edata[,1,])
+
+simulate idata from edata
+
+#Pe
+idata[,5,]=(edata[,5,])*rbinom(n,1,p_Pe_pDet)
+#Pl
+idata[,4,]=rgamma(n,edata[,4,],rate=p_Pl_var_r)
+#Pa
+idata[,3,]=rpois(n,edata[,3,])
+#T
+idata[,1,]=rnorm(n,edata[,1,],p_T_sd)
+#Pr
+idata[,2,]=rpois(n,edata[,2,])
+
+#for (k in 1:dim(edata)[3]){
+#	for (i in 3:dim(edata)[1]){
+#Pe
+#  if (edata[i,5,k]) idata[i,5,k]=rbinom(1,1,p_Pe_pDet)
+#Pl
+#  idata[i,4,k]=rgamma(length(edata[,4,]),edata[,4,],rate=p_Pl_var_r)
+#rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+#  if (idata[i,4,k]<0) idata[i,4,k]=0
+#Pa
+#  idata[i,3,k]=rpois(1,edata[i,3,k])
+#T
+#  idata[i,1,k]=rnorm(1,edata[i,1,k],p_T_sd)
+#Pr
+#  idata[i,2,k]=rpois(1,edata[i,2,k])
+#  }
+#}
+
+#
+# Simulation of indicator data from edata good one
+#
+
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  if (Pl<0) Pl=0
+  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+#
+# Simulation of edata from idata
+#
+# p(i/e)=p(e/i)*p(i)/p(e)
+# p(e/i)=p(i/e)*p(e)/p(i)
+# p(H)=dgamma3(x,1,5.749)
+# P(T)=dnorm(1,10,4)*.55+dnorm(1,21,3)*.45
+# P(Pa)=dgamma(x+1,.2,3)
+# P(Pl)=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+# plot(dnorm(1:40,10,4)*.6+dnorm(1:40,4)*.4)
+# ?dnorm
+library(FAdist)
+.1*1.5^8
+par(mfrow=c(1,2))
+hist(idata[,4,])
+plot((0:10)/5,dexp((1:11),1.3,1.5))
+plot(-5:35,dnorm(-5:35,10,4)*.55+dnorm(-5:35,21,3)*.45)
+hist(rpois(length(idata[,2,]),.1))
+plot(1:20,dgamma3(1:20,1,2))
+pgamma3(1,1,5.749)
+sum(edata[,2,]<1)/length(edata[,2,])
+pgamma3(2,1,5.749)
+sum((edata[,2,]<2)&(edata[,2,]>1))/length(idata[,2,])
+?rgamma3
+dimnames(idata)[[2]]
+idata=aperm(array(unlist(lapply(1:dim(edata)[3], function(k){lapply(1:dim(edata)[1], function (i) {
+  Pl=rnorm(1,edata[i,4,k],edata[i,4,k]*p_Pl_sd_r)
+  if (Pl<0) Pl=0
+  c(T=rnorm(1,edata[i,1,k],p_T_sd),Pr=rpois(1,edata[i,2,k]),Pa=rpois(1,edata[i,3,k]),Pl=Pl,Pe=rbinom(1,edata[i,5,k],p_Pe_pDet))
+})})),dim=dim(edata)[c(2,1,3)],dimnames=lapply(c(2,1,3),function(i) dimnames(edata)[[i]])),c(2,1,3))
+
+
+#
+# Probability of indicator data
+#
+
+hist(edata[,4,])
+idata
+log(exp(1))
+pT <- sum(dnorm(idata[,1,],edata[,1,],p_T_sd,log=TRUE))
+pH <- sum(dpois(idata[,2,],edata[,2,],log=TRUE)))
+pPa <- sum(dpois(idata[,3,],edata[,3,],log=TRUE))
+sdPl=edata[,4,]*p_Pl_sd_r
+sdPl[sdPl<=0.1]=.1
+pPl <- sum(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl,log=TRUE))
+pPe <- dbinom(idata[,5,],1,prob=edata[,5,]*p_Pe_pDet,log=TRUE)
+
+pIndic <- sum(c(pT = sum(log(dnorm(idata[,1,],edata[,1,],p_T_sd))),
+                pH = sum(log(dpois(idata[,2,],edata[,2,]))),
+                pPa = sum(log(dpois(idata[,3,],edata[,3,]))),
+                sdPl={sdPl=edata[,4,]*p_Pl_sd_r
+                sdPl[sdPl<=0.1]=.1
+                sum(log(dnorm(x=idata[,4,],mean=edata[,4,],sd=sdPl)))},
+                pPe=sum(dbinom(idata[,5,],1,prob=edata[,5,]*p_Pe_pDet,log=TRUE))
+))
+edata[1:8,,1]
+idata[1:8,,1]
+
+p_PaPa_rmax=10
+p_PaPa_K=20
+p_TxPa_min=15
+p_TxPa_max=30
+p_PrPa_min=3
+p_PlPa_r=1
+p_PrPl_rperPr=.5
+p_TxPl_min=10
+p_TxPl_max=30
+p_PaPl_r=-0.03
+p_PlPl_r=2.5
+p_PlPl_K=2
+p_PlPl_sd=.1
+p_PePa_r=0.1
+p_PaPe=1.5
+p_Pl_sd_r=0.05
+p_T_sd=0.3
+p_Pe_pDet=.8
+p_Pe_pFalseDet=.005
+
+
+#ecosysHistory
+p0 = c(p_PaPa_rmax=exp(runif(1,log(5),log(15))),p_PaPa_K=exp(runif(1,log(15),log(25))),
+       p_TxPa_min=runif(1,10,20),p_TxPa_max=runif(1,25,35),
+       p_PrPa_min=runif(1,1.5,4),p_PlPa_r=runif(1,.7,1.5),
+       p_PrPl_rperPr=runif(1,.3,.7),p_TxPl_min=runif(1,5,14),p_TxPl_max=runif(1,26,32),
+       p_PaPl_r=exp(runif(1,log(0.015),log(0.045))),
+       p_PlPl_r=exp(runif(1,log(1.8),log(3.5))),p_PlPl_K=exp(runif(1,log(1.5),log(3))),p_PlPl_sd=runif(1,.07,.15),
+       p_PePa_r=exp(runif(1,log(.06),log(.15))),
+       p_PaPe=runif(1,1.3,1.9),
+       #ecoindic
+       p_Pl_sd_r=exp(runif(1,log(.03),log(.07))),
+       p_T_sd=runif(1,.2,.5),
+       p_Pe_pDet=runif(1,.6,.99),
+       p_Pe_pFalseDet=exp(runif(1,log(.001),log(.02)))
+)
+
+#
+# Algorithm
+#
+setwd("/home/dupas/PlaNet/")
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+indicVar=c("iT","iPr","iPa","iPl","iPe")
+load("yield.data.RData")
+dataf[,,1]
+load(file = "yield.data.RData")
+
+setClass("Data",
+         contains="array",
+         validity=function(object){
+           if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is indicator and ecosystem variables, dim[2] is population, dim[3] is time")
+         }
+)
+
+idata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(idata) <- list(dimnames(idata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(idata)[[3]])
+edata <- new("Data",dataf[1:8,c(8,4,2,2,2),])
+dimnames(edata) <- list(dimnames(edata)[[1]],c("Tx","Pr","Pa","Pl","Pe"),dimnames(edata)[[3]])
+edata[,3,]<-NA
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting occurs in february
+edata[1,4,]<-0;edata[2,4,]<-0.01 # planting occurs in february
+edata[1:2,3,]<-0 # there is no parasite before planting
+edata[1:2,5,]<-0 # there is no pesticide before planting
+edata[,,1:3]
