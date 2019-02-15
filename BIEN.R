@@ -1,5 +1,5 @@
-setwd("/home/dupas/PlaNet/")
-setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
+setwd("/home/dupas/BIEN/")
+setwd("C:/Users/steph/OneDrive/Documents/GitHub/BIEN")
 
 #library(raster)
 
@@ -126,8 +126,12 @@ setMethod("subset",
                    })}
 )
 a=subset(x=p,type="eco")          
-subset(x=p,type="indic")          
-subset(x=p,index=1:5)        
+i=subset(x=p,type="indic")          
+s=subset(x=p,index=1:5)        
+names(p)
+names(a)
+names(i)
+names(s)
 
 setClass("edge",
          contains= "list",
@@ -208,22 +212,36 @@ setClass("prior",
          }
          )
 
-pr<-new("prior",list(PaPa_rmax=10,PaPa_K,p$TxPa_min=15,
-                     TxPa_max=30,PrPa_min=3,PlPa_r,
-                     Pr_var_r=list(logunif2,.3,.7),
-                     PrPl_min,TxPl_min,TxPl_max,
-                     PaPl_r=-0.03,PlPl_r,PlPl_K,
-                     PlPl_var_r,PePa_r=.1,p$PaPe
-                     T_sd=list(runif,.2,5),Pl_var_r=.03,
-                     Pa_sample_r=.1, 
-                     
-                     
-                     
-                    ))
-names(p)
+pr<-new("prior",list(PaPa_rmax=function() {exp(runif(n=1,min = log(5),max = log(10)))},
+                     PaPa_K=function() {exp(runif(n=1,min = log(15),max = log(25)))},
+                     TxPa_min=function() {runif(n=1,min = 10,max = 20)},
+                     TxPa_max=function() {runif(n=1,min = 25,max = 35)},
+                     PrPa_min=function() {runif(n=1,min = 2,max = 4)},
+                     PlPa_r=function() {runif(1,10,50)},
+                     PrPl_rperPr=function() {runif(1,.3,.7)},
+                     TxPl_min=function() {runif(1,5,14)},
+                     TxPl_max=function() {runif(1,26,32)},
+                     PaPl_r=function() {-exp(runif(1,log(0.001),log(0.045)))},
+                     PlPl_r=function() {exp(runif(1,log(1.8),log(3.5)))},
+                     PlPl_K=function() {exp(runif(1,log(1.5),log(3)))},
+                     PlPl_var_r=function() {9e-04},
+                     PePa_r=function() {exp(runif(1,log(.06),log(.15)))},
+                     PaPe=function() {runif(1,1.3,1.9)},
+                     T_sd=function() {runif(1,.2,.5)},
+                     Pr_var_r=function() {0.0025},
+                     Pa_sample_r=function() {0.05},
+                     Pl_var_r=function() {(exp(runif(1,log(.03),log(.07))))^2},
+                     Pe_pDet=function() {runif(1,.6,.99)},
+                     Pe_pFalseDet=function() {exp(runif(1,log(.001),log(.02)))}))
+
+names(pr)==names(p)
+
 setMethod("samplePrior",
           signature = "prior",
 )
+
+dataf <- load(file="data/yield.data.RData")
+class(dataf)
 
 p_Pe_pDet=.8
 p_Pe_pFalseDet=.005
@@ -271,7 +289,7 @@ setwd("C:/Users/steph/OneDrive/Documents/GitHub/PlaNet")
 p0=list(PaPa_rmax=10,PaPa_K=20,
      TxPa_min=15,TxPa_max=30,
      PrPa_min=3,
-     PlPa_r=1,
+     PlPa_r=20,
      PrPl_min=3,
      TxPl_min=10,TxPl_max=30,
      PaPl_r=-0.03,
@@ -314,7 +332,7 @@ p_Pe_pFalseDet=p0["Pe_pFalseDet"]
 #
 
 setwd("/home/dupas/PlaNet/")
-ecoVar=c("Tx","Pr","Pa","Pl","Pe") 
+ecoVar=c("Tx","Pr","Pa","Pl","Pe") # T: temperature, Pr: precipitation, Pl : plant density; Pa: parasite density; Pe : pestidice application
 indicVar=c("iT","iPr","iPa","iPl","iPe")
 load("yield.data.RData")
 dataf[,,1]
@@ -352,13 +370,13 @@ e0=edata
 simulTrueEdata <- function(p,edata){
   for (k in 1:dim(edata)[3]){
     for (i in 3:dim(edata)[1]){
-      #Pe
+      #Pe pesticide application
       edata[i,5,k]={if (edata[i-1,3,k]!=0) (rpois(1,edata[i-1,3,k]) > p$PaPe) else FALSE}
-      #Pl
+      #Pl plant density
       edata[i,4,k]=rgamma(1,shape=(edata[i-1,4,k]+{if ((edata[i-1,2,k]>p$PrPl_min)*(edata[i-1,2,k]<4)*(edata[i-1,1,k]>p$TxPl_min)*(edata[i-1,1,k]<p$TxPl_max)) {p$PlPl_r*4*(edata[i-1,1,k]-p$TxPl_min)*(p$TxPl_max-edata[i-1,1,k])/(p$TxPl_max+p$TxPl_min)*
           ((.5+.5*(edata[i-1,2,k]-p$PrPl_min)/(4-p$PrPl_min))+(edata[i-1,2,k]>=4))*
           (1-edata[i-1,4,k]/p$PlPl_K)*edata[i-1,4,k]} else 0})/p$PlPl_var_r,scale=p$PlPl_var_r)
-      #Pa
+      #Pa parasite density
       edata[i,3,k]={a = (edata[i-1,3,k]==0)+(!Pe+Pe*p$PePa_r)*edata[i-1,3,k]*p$PaPa_rmax*(edata[i-1,1,k]>p$TxPa_min)*(edata[i-1,1,k]<p$TxPa_max)*(edata[i-1,1,k]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(edata[i-2,2,k]>p$PrPa_min)*(edata[i-1,4,k]*p$PlPa_r);
       rpois(1,a*(a<p$PaPa_K)+p$PaPa_K*(a>=p$PaPa_K))}
     }
@@ -457,7 +475,7 @@ samplePrior <- function(option="prior"){
                         TxPa_min=runif(1,10,20),
                         TxPa_max=runif(1,25,35),
                         PrPa_min=runif(1,1.5,4),
-                        PlPa_r=runif(1,.7,1.5),
+                        PlPa_r=runif(1,10,50),
                         PrPl_rperPr=runif(1,.3,.7),
                         TxPl_min=runif(1,5,14),
                         TxPl_max=runif(1,26,32),
@@ -1211,8 +1229,8 @@ setMethod("cut",
 cut(object)
 
 # discrete time series DTS
-setwd("/home/dupas/PlaNet/")
-data <- read.table("TrainingDataSet_Maize.txt")
+setwd("/home/dupas/BIEN/")
+data <- read.table("data/TrainingDataSet_Maize.txt")
 head(data)
 
 coln <- colnames(data)
