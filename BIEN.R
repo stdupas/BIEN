@@ -1,4 +1,3 @@
-setwd("/home/dupas/BIEN/")
 setwd("C:/Users/steph/OneDrive/Documents/GitHub/BIEN")
 
 #library(raster)
@@ -13,7 +12,7 @@ setwd("C:/Users/steph/OneDrive/Documents/GitHub/BIEN")
 #         in dim 1 is time, 
 #         in dim 2 are ecosystem variables, 
 #         in dim 3 are repetitions
-# parameter = "list" of "numeric"
+# parameter = inherits from "list" of "numeric", with other slots defining attibutes of parameters in the list "eco" "indic" "sceono" 'ecodelay"  
 # prior = "list" of prior finstions
 # egde = list of (son="integer",indiclentgh="integer",ecolength="integer",
 #                 parentfull="list of funciton",delayfull="integer",
@@ -74,15 +73,26 @@ data[,,1]
 "defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
 "defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
 
+setwd("/home/dupas/BIEN/")
+
+# "parameter" list of ecosystem dynamics 
+# eco =     indices of ecological dynamics parameters,
+# indic=    indices of parameters linking indicators variables to ecological variables,
+# iscoeno=  indices of parameters linking scoenopoietic indicators variables to scoenopoietic ecological variables. 
+#           Scenopoietic ecological variables are ecological variables that do not depend on other ecological variables, 
+#           as in environmental niche modelling, as oposed to bionomic ecological variables.
+# ecodelay= indices of parameter that determine the tiñe delay in the ecossytem model
+
 setClass("parameter",
          contains="list",
-         slot = c(eco="integer",indic="integer"),
+         slot = c(eco="integer",indic="integer",iscoeno="integer",ecodelay="integer"),
          validity=function(object){
            if (!all(lapply(object,class)=="numeric")) stop("error in parameter construction : should be a list of numeric")
+           if (!all(order(c(object@eco,object@indic))==1:length(object))) stop("error in ecological and indicator parameters identity. The union of @eco and @indic is not 1:length(parameter)")
          }
-) 
+)
 
-object=p = new("parameter",
+x=p = new("parameter",
         list(
           PaPa_rmax=10,
           PaPa_K=20,
@@ -90,6 +100,7 @@ object=p = new("parameter",
           TxPa_max=30,
           PrPa_min=3,
           PlPa_r=1,
+          Pa_delay=2,
           PrPl_min=3,
           TxPl_min=10,
           TxPl_max=30,
@@ -104,97 +115,64 @@ object=p = new("parameter",
           Pa_sample_r=0.05,
           Pl_var_r=0.05^2,
           Pe_pDet=.8,
-          Pe_pFalseDet=.005),
-        eco = 1:15,
-        indic=16:21)
+          Pe_pFalseDet=.005
+          ),
+        eco = 1:16,
+        indic=17:22,
+        iscoeno=17:18,
+        ecodelay=as.integer(7))
+
+# subset
+# to extract subset of parameters se
+# x = parameter class variable
+# type = type of subset, 
+#        - if "index" uses the argument index to identify parameter index to extract
+#        - if "eco" extracts the ecological dynamics parameters
+#        - if "indic" extracts the parameters linking indicators variables to ecological variables
+#        - if "iscoeno" extracts the parameters linking sceonopoietic indicators to independent ecological variables
+#        - if "ecodelay" extracts the the ecological dynamics parameters defining time delay in the ecological responses
+# index = the index of the parameter to extract. Index is used if type = "index"
 
 setMethod("subset",
           signature="parameter",
-          definition= function(x,type="index",index){
+          definition= function(x,type="index",index=integer(0)){
             switch(type,
                    eco={pEco<-lapply(x@eco,function(i){x[[i]]})
                    names(pEco) <- names(x)[x@eco]
-                   new("parameter",pEco,eco=1:length(x@eco),indic=integer(0))
+                   new("parameter",pEco,eco=1:length(x@eco),indic=integer(0),iscoeno=integer(0),ecodelay=x@ecodelay)
                    },
                    indic={pIndic=lapply(x@indic,function(i){x[[i]]})
                    names(pIndic)=names(x)[x@indic]
                    new("parameter",pIndic,eco=integer(0),
-                       indic=1:length(x@indic))},
+                       indic=1:length(x@indic),iscoeno=1:length(x@iscoeno),
+                       ecodelay=integer(0))},
+                   iscoeno={pIscoeno=lapply(x@iscoeno,function(i){x[[i]]})
+                   names(pIscoeno)=names(x)[x@iscoeno]
+                   new("parameter",pIscoeno,eco=integer(0),indic=1:length(x@iscoeno),
+                       iscoeno=1:length(x@iscoeno),ecodelay=integer(0))},
+                   ecodelay={pEcodelay=lapply(x@ecodelay,function(i){x[[i]]})
+                   names(pEcodelay)=names(x)[x@ecodelay]
+                   new("parameter",pIscoeno,eco=x@ecodelay,indic=integer(0),
+                       iscoeno=integer(0),ecodelay=x@ecodelay)},
                    index={pIndex=lapply(index, function(i){x[[i]]})
+                   Indic=which(index%in%x@indic)
+                   Eco=which(index%in%x@eco)
+                   Iscoeno=which(index%in%x@iscoeno)
+                   Ecodelay=which(index%in%x@ecodelay)
                    names(pIndex)=names(x)[index]
-                   new("parameter",pIndex)
-                   })}
+                   new("parameter",pIndex,eco=Eco,indic=Indic,iscoeno=Iscoeno,ecodelay=Ecodelay)
+                   }
+            )}
 )
-a=subset(x=p,type="eco")          
-i=subset(x=p,type="indic")          
-s=subset(x=p,index=1:5)        
-names(p)
+
+a=subset(x=p,type="eco");a          
+b=subset(x=p,type="iscoeno");b          
+c=subset(x=p,type="indic");c
+d=subset(x=p,index=c(1:5,7,16:17,18));d
 names(a)
-names(i)
-names(s)
-
-setClass("edge",
-         contains= "list",
-         validity = function(object){
-           if (!all(names(object)[order(names(object))] %in% c("pAll","pIndic","pEco","son","indiclentgh","ecolength", "parenteco","parentindic","delayeco","delayindic","pfuneco","rfuneco", "pfunindic2eco","rfunindic2eco","pfuneco2indic"))) stop("edge class slots should be among 'pAll','pIndic','pEco','son','indiclentgh','ecolength', 'parenteco','parentindic','delayeco','delayindic','pfuneco','rfuneco', 'pfunindic2eco','rfunindic2eco','pfuneco2indic'")
-         })
-
-EdgeModel = new("edge",list(
-  pAll=p,
-  pIndic=subset(p,type="indic"),
-  pEco=subset(p,type="eco"),
-  son = 6:10,
-  indiclentgh = as.integer(5),
-  ecolength = as.integer(5), 
-  #parentfull = list(as.integer(1),as.integer(2),as.integer(c(3,6,7,8,9,10)),as.integer(c(4,6,7,9)),as.integer(c(8))),
-  #delayfull = list(as.integer(0),as.integer(0),as.integer(c(0,2,2,2,2,2)),as.integer(c(0,1,1,1)),as.integer(c(0))),
-  parenteco = list(NA,NA,as.integer(c(6,7,8,9,10)),as.integer(c(6,7,9)),as.integer(c(8))),
-  parentindic=lapply(rep(0,5),as.integer),
-  delayeco = list(NA,NA,lapply(list(2,2,2,2,2),as.integer),lapply(list(1,1,1),as.integer),lapply(list(0),as.integer)),
-  delayindic = list(as.integer(rep(as.integer(0),5))),
-  pfuneco = list(NA,
-                 NA,
-                 function(p,x,y){a = (x[4]==0)+(!x[6]+x[6]*p$PePa_r)*x[4]*p$PaPa_rmax*(x[2]>p$TxPa_min)*(x[2]<p$TxPa_max)*
-                   (x[2]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(x[3]>p$PrPa_min)*(x[4]*p$PlPa_r)
-                 dpois(y[1],lambda = a*(p$PaPa_K-a)/p$PaPa_K)},
-                 function(p,x){dgamma(y,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
-                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
-                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
-                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)},
-                 function(p,x){dgamma(y,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
-                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
-                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
-                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)}),
-  rfuneco = list(NA,
-                 NA,
-                 function(p,x){a = (x[4]==0)+(!x[6]+x[6]*p$PePa_r)*x[4]*p$PaPa_rmax*(x[2]>p$TxPa_min)*(x[2]<p$TxPa_max)*
-                   (x[2]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(x[3]>p$PrPa_min)*(x[4]*p$PlPa_r)
-                 rpois(1,lambda = a*(p$PaPa_K-a)/p$PaPa_K)},
-                 function(p,x){rgamma(1,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
-                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
-                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
-                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)},
-                 function(p,x){rgamma(1,shape=x[4]+{if ((x[3]>p$PrPl_min)*(x[3]<4)*(x[2]>p$TxPl_min)*(x[2]<p$TxPl_max)) {
-                   p$PlPl_r*4*(x[2]-p$TxPl_min)*(p$TxPl_max-x[2])/(p$TxPl_max+p$TxPl_min)*
-                     ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x[3]>=4))*
-                     (1-x[4]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,scale=p$PlPl_var_r)}), 
-  pfunindic2eco = list(function(p,x) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
-                       function(p,x) {dgamma(y[2],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
-                       function(p,x) {dpois(y,x[1]/p$Pa_sample_r)},
-                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
-  rfunindic2eco = list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
-                       function(p,x) {rgamma(1,shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
-                       function(p,x) {rpois(1,x[1]/p$Pa_sample_r)},
-                       function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                       function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
-  pfuneco2indic = list(function(p,x) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
-                       function(p,x) {dgamma(y[2],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
-                       function(p,x) {dpois(y,x[1]/p$Pa_sample_r)},
-                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                       function(p,x) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)})
-))
-
+names(b)
+names(c)
+names(d)
 
 is.list.of.function <- function(x){
   all(lapply(x,class)=="function")
@@ -203,14 +181,158 @@ is.list.of.numeric <- function(x){
   all(lapply(x,class)=="numeric")
 }
 
+# edge
+# to define the graph model
+# ecoVar = names of the ecological variables
+# indicVar = names of the indicator variables
+# p = parameters of the model, class parameter
+# adjacency = matrix of adjacency among indicator and ecological variables set
+# adjacency = 0, no link
+# adjacency = 1, ecologial link between t-f(t) in line and t in columns (ecological simulation or probability)
+# adjacency = 2|3, link between indicator in line to ecological in column at time t (ecological simulation from indicators)
+# adjacency = 3, link between scoenopoietic indicator in line to scoenopoietic ecological in column at time t (ecological simulation from indicators)
+# adjacency = 4|5, link between ecological to indicator at time t (indicator simulation from ecological simulation)
+# adjacency = 5, link between scoenopoietic ecological to scoenopoietic indicator at time t (indicator simulation from ecological simulation)
+#
+# dteco = list of probability function of the time delays for the ecosystem dependent variables
+# deco = list of probability functions for the ecosystem dependent variables
+# dEco2Indic = list of probability function of the indicator variables depending on ecological variables
+# dIndic2Eco = list of probability function of the ecosystem variables depending on the indicator variables
+# dscoenoEco2Indic = list of probability function of the scoenopoietic ecosystem variables ('independent' ecosystem variables) 
+#                    depending on the scoenopoietic indicator variables
+# pscoenoIndic2Eco = list of probability function of the scoenopoietic indicator variables
+#                    depending on the scoenopoietic ecosystem variables ('independent' ecosystem variables) 
+# reco = list of sampling probability functions for the ecosystem dependent variables
+# rEco2Indic = list of sampling probability  function of the indicator variables depending on ecological variables
+# rIndic2Eco = list of sampling probability  function of the ecosystem variables depending on the indicator variables
+# rscoenoEco2Indic = list of sampling probability  function of the scoenopoietic ecosystem variables ('independent' ecosystem variables) 
+#                    depending on the scoenopoietic indicator variables
+# rscoenoIndic2Eco = list of sampling probability  function of the scoenopoietic indicator variables
+#                    depending on the scoenopoietic ecosystem variables ('independent' ecosystem variables) 
+#
+#
+#
+#
+
+
+#
+# edge model
+#
+
+validEdge = function(object){
+  Names = c("ecoVar","indicVar","p","adjacency","dteco","deco","reco","dindic2eco","rindic2eco","deco2indic","reco2indic","rscoenoEco2Indic","rscoenoIndic2Eco","dscoenoEco2Indic","dscoenoIndic2Eco")
+  if (!all(names(object)[order(names(object))] == Names[order(Names)])) stop("edge class slots should be among 'ecoVar','indicVar','p','adjacency','dteco','deco','reco','dindic2eco','rindic2eco','deco2indic','reco2indic','rscoenoEco2Indic','rscoenoIndic2Eco','dscoenoEco2Indic','dscoenoIndic2Eco'")
+  if  (!is.list.of.function(object[["deco"]])) stop("deco should be a list of functions")
+  if  (!is.list.of.function(object[["reco"]])) stop("reco should be a list of functions")
+  if  (!is.list.of.function(object[["deco2indic"]])) stop("deco2indic should be a list of functions")
+  if  (!is.list.of.function(object[["rindic2eco"]])) stop("rindic2eco should be a list of functions")
+  if  (!is.list.of.function(object[["reco2indic"]])) stop("reco2indic should be a list of functions")
+  if  (!is.list.of.function(object[["rscoenoEco2Indic"]])) stop("rscoenoEco2Indic should be a list of functions")
+  if  (!is.list.of.function(object[["rscoenoIndic2Eco"]])) stop("rscoenoIndic2Eco should be a list of functions")
+  if  (!is.list.of.function(object[["dscoenoEco2Indic"]])) stop("dscoenoEco2Indic should be a list of functions")
+  if  (!is.list.of.function(object[["dscoenoIndic2Eco"]])) stop("dscoenoIndic2Eco should be a list of functions")
+}
+
+setClass("edge",
+         contains= "list",
+         validity=validEdge
+         )
+
+
+EdgeModel = new("edge",list(
+  ecoVar=c("Tx","Pr","Pa","Pl","Pe"),
+  indicVar=c("iTx","iPr","iPa","iPl","iPe"),
+  p=p,
+  adjacency = t(matrix(as.integer(c(0,0,0,0,0,3,0,0,0,0,
+                                    0,0,0,0,0,0,3,0,0,0,
+                                    0,0,0,0,0,0,0,2,0,0,
+                                    0,0,0,0,0,0,0,0,2,0,
+                                    0,0,0,0,0,0,0,0,0,2,
+                                    5,0,0,0,0,0,0,1,1,0,
+                                    0,5,0,0,0,0,0,1,1,0,
+                                    0,0,4,0,0,0,0,1,1,1,
+                                    0,0,0,4,0,0,0,1,0,0,
+                                    0,0,0,0,4,0,0,1,0,0)),nrow=10,dimnames=list(c("iTx","iPr","iPa","iPl","iPe","Tx","Pr","Pa","Pl","Pe"),
+                                                                                c("iTx","iPr","iPa","iPl","iPe","Tx","Pr","Pa","Pl","Pe")))),
+  dteco = list(list(as.integer(p$Pa_delay-2*(p$Pa_delay/2)^.5):as.integer(p$Pa_delay+2*(p$Pa_delay/2)^.5),dgamma(x=as.integer(p$Pa_delay-2*(p$Pa_delay/2)^.5):as.integer(p$Pa_delay+2*(p$Pa_delay/2)^.5),shape = p$Pa_delay*2,rate=2)),
+               1,
+               1),
+  deco = list(
+    function(p,x,y){
+      a = (x["Pa"]==0)+
+        (!x["Pe"]+x["Pe"]*p$PePa_r)*x["Pa"]*p$PaPa_rmax*(x["Tx"]>p$TxPa_min)*(x["Tx"]<p$TxPa_max)*
+        (x["Tx"]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(x["Pr"]>p$PrPa_min)*(x["Pl"]*p$PlPa_r)
+      dpois(y[1],lambda = a*(p$PaPa_K-a)/p$PaPa_K)},
+    function(p,x,y){
+      dgamma(y,
+             shape=x["Pl"]+{if ((x["Pr"]>p$PrPl_min)*(x["Pr"]<4)*(x["Tx"]>p$TxPl_min)*(x["Tx"]<p$TxPl_max)) {
+               p$PlPl_r*4*(x["Tx"]-p$TxPl_min)*(p$TxPl_max-x["Tx"])/(p$TxPl_max+p$TxPl_min)*
+                 ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x["Pr"]>=4))*
+                 (1-x["Pl"]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,
+             scale=p$PlPl_var_r)},
+    function(p,x,y){
+      dlogis(y,location=p$PaPe)}),
+  reco = list(
+    function(p,x){
+      a = (x["Pa"]==0)+
+        (!x["Pe"]+x["Pe"]*p$PePa_r)*x["Pa"]*p$PaPa_rmax*(x["Tx"]>p$TxPa_min)*(x["Tx"]<p$TxPa_max)*
+        (x["Tx"]-p$TxPa_min)/(p$TxPa_max-p$TxPa_min)*(x["Pr"]>p$PrPa_min)*(x["Pl"]*p$PlPa_r)
+      rpois(1,lambda = a*(p$PaPa_K-a)/p$PaPa_K)},
+    function(p,x){
+      rgamma(1,
+             shape=x["Pl"]+{if ((x["Pr"]>p$PrPl_min)*(x["Pr"]<4)*(x["Tx"]>p$TxPl_min)*(x["Tx"]<p$TxPl_max)) {
+               p$PlPl_r*4*(x["Tx"]-p$TxPl_min)*(p$TxPl_max-x["Tx"])/(p$TxPl_max+p$TxPl_min)*
+                 ((.5+.5*(x[3]-p$PrPl_min)/(4-p$PrPl_min))+(x["Pr"]>=4))*
+                 (1-x["Pl"]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,
+             scale=p$PlPl_var_r)},
+    function(p,x){
+      dlogis(1,location=p$PaPe)}),
+  dindic2eco = list(function(p,x,y) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
+                    function(p,x,y) {dgamma(y[1],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                    function(p,x,y) {dpois(y,x[1]/p$Pa_sample_r)},
+                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
+  rindic2eco = list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
+                    function(p,x) {rgamma(1,shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                    function(p,x) {rpois(1,x[1]/p$Pa_sample_r)},
+                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
+  deco2indic = list(function(p,x,y) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
+                    function(p,x,y) {dgamma(y[1],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                    function(p,x,y) {dpois(y,x[1]/p$Pa_sample_r)},
+                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
+  reco2indic = list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
+                    function(p,x) {rgamma(1,shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
+                    function(p,x) {rpois(1,x[1]/p$Pa_sample_r)},
+                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
+                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
+  rscoenoEco2Indic = list(function(p,x) {rnorm(1,mean=x["Tx"],sd = p$T_sd)},
+                          function(p,x) {rgamma(1,shape =x["Pr"]/p$Pr_var_r,scale=p$Pr_var_r)}),
+  rscoenoIndic2Eco = list(function(p,x) {rnorm(1,mean=x["iTx"],sd = p$T_sd)},
+                          function(p,x) {rgamma(1,shape =x["iPr"]/p$Pr_var_r,scale=p$Pr_var_r)}),
+  dscoenoEco2Indic = list(function(p,x,y) {pnorm(y,mean=x["Tx"],sd = p$T_sd)},
+                          function(p,x,y) {pgamma(y,shape =x["Pr"]/p$Pr_var_r,scale=p$Pr_var_r)}),
+  dscoenoIndic2Eco = list(function(p,x,y) {pnorm(y,mean=x["iTx"],sd = p$T_sd)},
+                          function(p,x,y) {pgamma(y,shape =x["iPr"]/p$Pr_var_r,scale=p$Pr_var_r)})
+))
+
 setClass("prior",
          contains = "list",
-         slot = c(priorParam="list"),
-         validity = function(object){
-           if (!is.list.of.function(object)) stop("error when construction 'prior'. It was not a list of functions")
-           if (any(lapply(object@priorParam,is.list.of.numeric))) stop("error when construction 'prior'. The slot priorParam was not a list of numeric")
+         slot = c(eco="integer",indic="integer", iscoeno="integer",ecodelay="integer"),
+         validity=function(object){
+           if (!all(lapply(object,class)=="function")) stop("error in prior construction : should be a list of functions")
+           if (!all(order(c(object@eco,object@indic))==1:length(object))) stop("error in identification of ecological and indicator priors; their union is not 1:length(prior)")
          }
-         )
+)
+
+# gamma : mean = shape/rate, var = shape/rate^2
+# eco =     indices of ecological dynamics parameters,
+# indic=    indices of parameters linking indicators variables to ecological variables,
+# iscoeno=  indices of parameters linking scoenopoietic indicators variables to scoenopoietic ecological variables. 
+#           Scenopoietic ecological variables are ecological variables that do not depend on other ecological variables, 
+#           as in environmental niche modelling, as oposed to bionomic ecological variables.
+# ecodelay= indices of parameter that determine the tiñe delay in the ecossytem model
 
 pr<-new("prior",list(PaPa_rmax=function() {exp(runif(n=1,min = log(5),max = log(10)))},
                      PaPa_K=function() {exp(runif(n=1,min = log(15),max = log(25)))},
@@ -218,6 +340,7 @@ pr<-new("prior",list(PaPa_rmax=function() {exp(runif(n=1,min = log(5),max = log(
                      TxPa_max=function() {runif(n=1,min = 25,max = 35)},
                      PrPa_min=function() {runif(n=1,min = 2,max = 4)},
                      PlPa_r=function() {runif(1,10,50)},
+                     Pa_delay=function() {rgamma(1,shape = 2,rate = 1)},
                      PrPl_rperPr=function() {runif(1,.3,.7)},
                      TxPl_min=function() {runif(1,5,14)},
                      TxPl_max=function() {runif(1,26,32)},
@@ -232,33 +355,80 @@ pr<-new("prior",list(PaPa_rmax=function() {exp(runif(n=1,min = log(5),max = log(
                      Pa_sample_r=function() {0.05},
                      Pl_var_r=function() {(exp(runif(1,log(.03),log(.07))))^2},
                      Pe_pDet=function() {runif(1,.6,.99)},
-                     Pe_pFalseDet=function() {exp(runif(1,log(.001),log(.02)))}))
+                     Pe_pFalseDet=function() {exp(runif(1,log(.001),log(.02)))}),
+        eco = 1:16,
+        indic=17:22,
+        iscoeno=17:18,
+        ecodelay=as.integer(7))
 
 names(pr)==names(p)
+pr[[1]]()
+sample
 
-setMethod("samplePrior",
+setMethod("sample",
           signature = "prior",
+          definition = function(x,size=1){
+            new("parameter",lapply(1:length(x),function(i) {object[[i]]()}),eco=object@eco,indic=object@indic)
+          }
 )
 
-dataf <- load(file="data/yield.data.RData")
-class(dataf)
+pr@eco
+sample(pr)
 
-p_Pe_pDet=.8
-p_Pe_pFalseDet=.005
+#
+# Data
+# data should be a 3 dim array, dim[1] is time, dim[2] indicator and ecosystem variables, dim[3] locality or repetition
+#
+#
+#
+load(file="data/climdata.RData")
+save(climdata,file = "data/climdata.RData")
+climdata[,,1]
+dataMaize=array(NA,dim=c(dim(climdata)[1],10,dim(climdata)[3]),dimnames=list(dimnames(climdata)[[1]],c("iTx","iPr","iPa","iPl","iPe","Tx","Pr","Pa","Pl","Pe"),dimnames(climdata)[[3]]))
+dataMaize[,1:2,]=climdata
+dataMaize[,,1]
 
-setClass("modelSet",
-         contains = "edge",
-         slot = c(data="array", parameters = "parameter", prior = "pior", posterior = "posterior"),
-         validity = function(object){
+validity_Data=function(object){
+  if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is time, dim[2] indicator and ecosystem variables, dim[3] locality or repetition")
+  if (any(colnames(object)!=c(object@indicVar,object@ecoVar))) stop("names Data class of columns should be 'indicVar' followed by 'ecoVar' slots")
+}
+
+setClass("Data",
+         contains="array",
+         slots= c(indicVar="character",ecoVar="character",timeStep="numeric"),
+         validity = validity_Data)
+
+object=dataMaize=new("Data",dataMaize,indicVar=c("iTx","iPr","iPa","iPl","iPe"),ecoVar=c("Tx","Pr","Pa","Pl","Pe"),timeStep=365*24*3600/12)
+
+setClass("data_model",
+         contains="Data",
+         slots=c(edge="edge"),
+#         validity = validity_data_model
+)
+validity_data_model=function(object){
+  if ((object@edge@p@indic)!=object@indicVar) stop("when creating data_model object, 
+                                                            the slot @indic of Data should be identical to the @indicVar slot")
+}
+
+DM <- new("data_model",dataMaize,edge=EdgeModel)
+
+
+setMethod("simulate",
+         signature = c(object="data_model"),
+         definition = function(object){
            
+         }
+         )
+
+setClass("posterior",
+)
+
+
+setClass("bayesSet",
+         contains = "edge",
+         slot = c(data="array", parameters = "parameter", prior = "pior", posterior = "array", thining= "integer", burnin = "integer"),
+         validity = function(object){
          })
-
-
-
-
-#
-# SImulation of true data
-#
 
 #
 # in this first example indicators are very good
