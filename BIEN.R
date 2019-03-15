@@ -70,8 +70,8 @@ data[,,1]
 #   - defun is the function calulating the probality of a son knowing the parents in the ecosystem model
 #   - rifun is the function sampling an ecosystem variable knowing the indicator
 #
-"defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
-"defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
+#"defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
+#"defun","delayeco","delayfull","dfullfun","ecolength","indiclentgh","parenteco","parentfull","rifun","son"
 
 setwd("/home/dupas/BIEN/")
 
@@ -101,7 +101,7 @@ x=p = new("parameter",
           PrPa_min=3,
           PlPa_r=1,
           Pa_delay=2,
-          PrPl_min=3,
+          PrPl_rperPr=.5,
           TxPl_min=10,
           TxPl_max=30,
           PaPl_r=-0.03,
@@ -152,7 +152,7 @@ setMethod("subset",
                        iscoeno=1:length(x@iscoeno),ecodelay=integer(0))},
                    ecodelay={pEcodelay=lapply(x@ecodelay,function(i){x[[i]]})
                    names(pEcodelay)=names(x)[x@ecodelay]
-                   new("parameter",pIscoeno,eco=x@ecodelay,indic=integer(0),
+                   new("parameter",eco=x@ecodelay,indic=integer(0),
                        iscoeno=integer(0),ecodelay=x@ecodelay)},
                    index={pIndex=lapply(index, function(i){x[[i]]})
                    Indic=which(index%in%x@indic)
@@ -168,17 +168,20 @@ setMethod("subset",
 a=subset(x=p,type="eco");a          
 b=subset(x=p,type="iscoeno");b          
 c=subset(x=p,type="indic");c
+c=subset(x=p,type="ecodelay");c
 d=subset(x=p,index=c(1:5,7,16:17,18));d
 names(a)
 names(b)
 names(c)
 names(d)
 
-is.list.of.function <- function(x){
-  all(lapply(x,class)=="function")
+
+
+is.list.of.function <- function(object){
+  all(lapply(object,class)=="function")
 }
-is.list.of.numeric <- function(x){
-  all(lapply(x,class)=="numeric")
+is.list.of.numeric <- function(object){
+  all(lapply(objet,class)=="numeric")
 }
 
 # edge
@@ -213,6 +216,9 @@ is.list.of.numeric <- function(x){
 #
 #
 #
+setClass("listOfun",
+         contains="list",
+         validity=is.list.of.function)
 
 
 #
@@ -233,13 +239,36 @@ validEdge = function(object){
   if  (!is.list.of.function(object[["dscoenoIndic2Eco"]])) stop("dscoenoIndic2Eco should be a list of functions")
 }
 
+validEdge = function(object){
+  Names = c("ecoVar","indicVar","p","adjacency","dteco","deco","reco","dindic2eco","rindic2eco","deco2indic","reco2indic","rscoenoEco2Indic","rscoenoIndic2Eco","dscoenoEco2Indic","dscoenoIndic2Eco")
+  #if (!all(names(object)[order(names(object))] == Names[order(Names)])) stop("edge class slots should be among 'ecoVar','indicVar','p','adjacency','dteco','deco','reco','dindic2eco','rindic2eco','deco2indic','reco2indic','rscoenoEco2Indic','rscoenoIndic2Eco','dscoenoEco2Indic','dscoenoIndic2Eco'")
+  if  (!is.list.of.function(object@deco)) stop("deco should be a list of functions")
+  if  (!is.list.of.function(object@reco)) stop("reco should be a list of functions")
+  if  (!is.list.of.function(object@deco2indic)) stop("deco2indic should be a list of functions")
+  if  (!is.list.of.function(object@rindic2eco)) stop("rindic2eco should be a list of functions")
+  if  (!is.list.of.function(object@reco2indic)) stop("reco2indic should be a list of functions")
+  if  (!is.list.of.function(object@rscoenoEco2Indic)) stop("rscoenoEco2Indic should be a list of functions")
+  if  (!is.list.of.function(object@rscoenoIndic2Eco)) stop("rscoenoIndic2Eco should be a list of functions")
+  if  (!is.list.of.function(object@dscoenoEco2Indic)) stop("dscoenoEco2Indic should be a list of functions")
+  if  (!is.list.of.function(object@dscoenoIndic2Eco)) stop("dscoenoIndic2Eco should be a list of functions")
+}
+
 setClass("edge",
-         contains= "list",
+         slots=list(ecoVar="character",indicVar="character",p="parameter",adjacency="matrix",dteco="list",
+                 deco="listOfun",reco="listOfun",dindic2eco="listOfun",rindic2eco="listOfun",
+                 deco2indic="listOfun",reco2indic="listOfun", dscoenoEco2Indic="listOfun",
+                 rscoenoEco2Indic="listOfun",dscoenoIndic2Eco="listOfun",rscoenoIndic2Eco="listOfun"),
          validity=validEdge
          )
 
+setMethod(names,signature = "edge",
+          definition = function(x){
+            slotNames(x)
+          }
+)
 
-EdgeModel = new("edge",list(
+
+EdgeModel = new("edge",
   ecoVar=c("Tx","Pr","Pa","Pl","Pe"),
   indicVar=c("iTx","iPr","iPa","iPl","iPe"),
   p=p,
@@ -257,7 +286,7 @@ EdgeModel = new("edge",list(
   dteco = list(list(as.integer(p$Pa_delay-2*(p$Pa_delay/2)^.5):as.integer(p$Pa_delay+2*(p$Pa_delay/2)^.5),dgamma(x=as.integer(p$Pa_delay-2*(p$Pa_delay/2)^.5):as.integer(p$Pa_delay+2*(p$Pa_delay/2)^.5),shape = p$Pa_delay*2,rate=2)),
                1,
                1),
-  deco = list(
+  deco = new("listOfun",list(
     function(p,x,y){
       a = (x["Pa"]==0)+
         (!x["Pe"]+x["Pe"]*p$PePa_r)*x["Pa"]*p$PaPa_rmax*(x["Tx"]>p$TxPa_min)*(x["Tx"]<p$TxPa_max)*
@@ -271,8 +300,8 @@ EdgeModel = new("edge",list(
                  (1-x["Pl"]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,
              scale=p$PlPl_var_r)},
     function(p,x,y){
-      dlogis(y,location=p$PaPe)}),
-  reco = list(
+      dlogis(y,location=p$PaPe)})),
+  reco = new("listOfun",list(
     function(p,x){
       a = (x["Pa"]==0)+
         (!x["Pe"]+x["Pe"]*p$PePa_r)*x["Pa"]*p$PaPa_rmax*(x["Tx"]>p$TxPa_min)*(x["Tx"]<p$TxPa_max)*
@@ -286,36 +315,36 @@ EdgeModel = new("edge",list(
                  (1-x["Pl"]/p$PlPl_K)*x[4]} else 0}/p$PlPl_var_r,
              scale=p$PlPl_var_r)},
     function(p,x){
-      dlogis(1,location=p$PaPe)}),
-  dindic2eco = list(function(p,x,y) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
+      dlogis(1,location=p$PaPe)})),
+  dindic2eco = new("listOfun",list(function(p,x,y) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
                     function(p,x,y) {dgamma(y[1],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
                     function(p,x,y) {dpois(y,x[1]/p$Pa_sample_r)},
                     function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
-  rindic2eco = list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
+                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)})),
+  rindic2eco = new("listOfun",list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
                     function(p,x) {rgamma(1,shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
                     function(p,x) {rpois(1,x[1]/p$Pa_sample_r)},
                     function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
-  deco2indic = list(function(p,x,y) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
+                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)})),
+  deco2indic = new("listOfun",list(function(p,x,y) {dnorm(y[1],mean=x[1],sd = p$T_sd)},
                     function(p,x,y) {dgamma(y[1],shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
                     function(p,x,y) {dpois(y,x[1]/p$Pa_sample_r)},
                     function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
-  reco2indic = list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
+                    function(p,x,y) {dgamma(y,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)})),
+  reco2indic = new("listOfun",list(function(p,x) {rnorm(1,mean=x[1],sd = p$T_sd)},
                     function(p,x) {rgamma(1,shape =x[1]/p$Pr_var_r,scale=p$Pr_var_r)},
                     function(p,x) {rpois(1,x[1]/p$Pa_sample_r)},
                     function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)},
-                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)}),
-  rscoenoEco2Indic = list(function(p,x) {rnorm(1,mean=x["Tx"],sd = p$T_sd)},
-                          function(p,x) {rgamma(1,shape =x["Pr"]/p$Pr_var_r,scale=p$Pr_var_r)}),
-  rscoenoIndic2Eco = list(function(p,x) {rnorm(1,mean=x["iTx"],sd = p$T_sd)},
-                          function(p,x) {rgamma(1,shape =x["iPr"]/p$Pr_var_r,scale=p$Pr_var_r)}),
-  dscoenoEco2Indic = list(function(p,x,y) {pnorm(y,mean=x["Tx"],sd = p$T_sd)},
-                          function(p,x,y) {pgamma(y,shape =x["Pr"]/p$Pr_var_r,scale=p$Pr_var_r)}),
-  dscoenoIndic2Eco = list(function(p,x,y) {pnorm(y,mean=x["iTx"],sd = p$T_sd)},
-                          function(p,x,y) {pgamma(y,shape =x["iPr"]/p$Pr_var_r,scale=p$Pr_var_r)})
-))
+                    function(p,x) {rgamma(1,shape=x[1]/p$Pl_var_r,scale=p$Pl_var_r)})),
+  dscoenoEco2Indic = new("listOfun",list(function(p,x,y) {pnorm(y,mean=x["Tx"],sd = p$T_sd)},
+                          function(p,x,y) {pgamma(y,shape =x["Pr"]/p$Pr_var_r,scale=p$Pr_var_r)})),
+  rscoenoEco2Indic = new("listOfun",list(function(p,x) {rnorm(1,mean=x["Tx"],sd = p$T_sd)},
+                                         function(p,x) {rgamma(1,shape =x["Pr"]/p$Pr_var_r,scale=p$Pr_var_r)})),
+  dscoenoIndic2Eco = new("listOfun",list(function(p,x,y) {pnorm(y,mean=x["iTx"],sd = p$T_sd)},
+                          function(p,x,y) {pgamma(y,shape =x["iPr"]/p$Pr_var_r,scale=p$Pr_var_r)})),
+  rscoenoIndic2Eco = new("listOfun",list(function(p,x) {rnorm(1,mean=x["iTx"],sd = p$T_sd)},
+                                         function(p,x) {rgamma(1,shape =x["iPr"]/p$Pr_var_r,scale=p$Pr_var_r)}))
+)
 
 setClass("prior",
          contains = "list",
@@ -368,7 +397,7 @@ sample
 setMethod("sample",
           signature = "prior",
           definition = function(x,size=1){
-            new("parameter",lapply(1:length(x),function(i) {object[[i]]()}),eco=object@eco,indic=object@indic)
+            new("parameter",lapply(1:length(x),function(i) {x[[i]]()}),eco=x@eco,indic=x@indic,iscoeno=x@iscoeno,ecodelay=x@ecodelay)
           }
 )
 
@@ -381,13 +410,14 @@ sample(pr)
 #
 #
 #
+
 load(file="data/climdata.RData")
 save(climdata,file = "data/climdata.RData")
 climdata[,,1]
 dataMaize=array(NA,dim=c(dim(climdata)[1],10,dim(climdata)[3]),dimnames=list(dimnames(climdata)[[1]],c("iTx","iPr","iPa","iPl","iPe","Tx","Pr","Pa","Pl","Pe"),dimnames(climdata)[[3]]))
 dataMaize[,1:2,]=climdata
 dataMaize[,,1]
-
+dataMaize<-dataMaize[-dim(dataMaize)[1],,]
 validity_Data=function(object){
   if (length(dim(object))!=3) stop("data should be a 3 dim array, dim[1] is time, dim[2] indicator and ecosystem variables, dim[3] locality or repetition")
   if (any(colnames(object)!=c(object@indicVar,object@ecoVar))) stop("names Data class of columns should be 'indicVar' followed by 'ecoVar' slots")
@@ -395,28 +425,51 @@ validity_Data=function(object){
 
 setClass("Data",
          contains="array",
-         slots= c(indicVar="character",ecoVar="character",timeStep="numeric"),
+         slots= c(indicVar="character",ecoVar="character",scoenoVarIndex="integer",bionoVarIndex="integer",timeStep="numeric"),
          validity = validity_Data)
 
-object=dataMaize=new("Data",dataMaize,indicVar=c("iTx","iPr","iPa","iPl","iPe"),ecoVar=c("Tx","Pr","Pa","Pl","Pe"),timeStep=365*24*3600/12)
-
+object=new("Data",dataMaize,indicVar=c("iTx","iPr","iPa","iPl","iPe"),ecoVar=c("Tx","Pr","Pa","Pl","Pe"),scoenoVarIndex=1:2,bionoVarIndex=3:5,timeStep=365*24*3600/12)
+#slot(object,"scoenoVarIndex")<-as.integer(c(1,2))
+dataMaize=object
 setClass("data_model",
          contains="Data",
          slots=c(edge="edge"),
 #         validity = validity_data_model
 )
 validity_data_model=function(object){
-  if ((object@edge@p@indic)!=object@indicVar) stop("when creating data_model object, 
-                                                            the slot @indic of Data should be identical to the @indicVar slot")
+#  if ((object@edge@p@indic)!=object@indicVar) stop("when creating data_model object, 
+#                                                            the slot @indic of Data should be identical to the @indicVar slot")
 }
 
-DM <- new("data_model",dataMaize,edge=EdgeModel)
+object=DM <- new("data_model",dataMaize,edge=EdgeModel)
 
-
+object=DM
 setMethod("simulate",
          signature = c(object="data_model"),
-         definition = function(object){
-           
+         definition = function(object,option="fromIndep"){
+           switch(option,
+                  fromIndep = {
+                    p = subset(object@edge@p,type="iscoeno")
+                    for (repet in 1:dim(object@.Data)[3]){
+                      for (t in 1:dim(object@.Data)[1]){
+                        for (Var in object@scoenoVarIndex){
+                          x = object@.Data[t,object@indicVar[object@scoenoVarIndex],repet]
+                          Fun = object@edge@rscoenoIndic2Eco[[Var]]
+                          object@.Data[t,object@ecoVar[Var],repet] <- Fun(p,x)
+                        }
+                      }
+                    }
+                    for (repet in 1:dim(object@.Data)[3]){
+                      for (t in 1:dim(object@.Data)[1]){
+                        for (Var in 1:length(object@bionoVarIndex)){
+                          x = object@.Data[t,object@ecoVar[object@bionoVarIndex],repet]
+                          Fun = object@edge@reco[[Var]]
+                          object@.Data[t,object@ecoVar[Var],repet] <- Fun(p,x)
+                        }
+                      }
+                    }
+                    
+                  })
          }
          )
 
