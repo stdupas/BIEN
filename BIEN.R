@@ -452,22 +452,49 @@ setMethod("simulate",
            switch(option,
                   fromIndep = {
                     p = subset(object@edge@p,type="iscoeno")
-                    res=lapply(1:dim(object@.Data)[3],function(x){
+                    a=system.time({
+                      for (month in 1:dim(object@.Data)[1]){
+                      object@.Data[month,,] <- (
+                        sapply(1:dim(object@.Data)[3],function(repet){ 
+                          sapply(object@scoenoVarIndex,function(Var){
+                            object@edge@rscoenoIndic2Eco[[Var]](p,object@.Data[month,object@indicVar[object@scoenoVarIndex],repet])
+                          })
+                        })
+                      )}
+                      }
+                      )
+                    eco = {
+                      p = subset(object@edge@p,type="iscoeno")
+                      a=system.time({
+                        for (month in 1:dim(object@.Data)[1]){
+                          object@.Data[month,,] <- (
+                            sapply(1:dim(object@.Data)[3],function(repet){ 
+                              sapply(object@scoenoVarIndex,function(Var){
+                                object@edge@rscoenoIndic2Eco[[Var]](p,object@.Data[month,object@indicVar[object@scoenoVarIndex],repet])
+                              })
+                            })
+                          )}
+                      }
+                      )
+                      
+for (month in 1:dim(object@.Data)[1]){
+                      object@.Data[month,,] <- (
+                        sapply(1:dim(object@.Data)[3],function(repet){ 
+                          sapply(object@scoenoVarIndex,function(Var){
+                            object@edge@rscoenoIndic2Eco[[Var]](p,object@.Data[month,object@indicVar[object@scoenoVarIndex],repet])
+                          })
+                        })
+                      )
+                    }
+                    #
+                    
+                      lapply(1:dim(object@.Data)[3],function(x){
                       lapply(1:dim(object@.Data)[3],function(y){
                         lapply(object@scoenoVarIndex,function(z){
                           x = object@.Data[t,object@indicVar[object@scoenoVarIndex],repet]
                           Fun = object@edge@rscoenoIndic2Eco[[Var]]
                           object@.Data[t,object@ecoVar[Var],repet] <- Fun(p,x)
                         })})})
-                    for (repet in 1:dim(object@.Data)[3]){
-                      for (t in 1:dim(object@.Data)[1]){
-                        for (Var in object@scoenoVarIndex){
-                          x = object@.Data[t,object@indicVar[object@scoenoVarIndex],repet]
-                          Fun = object@edge@rscoenoIndic2Eco[[Var]]
-                          object@.Data[t,object@ecoVar[Var],repet] <- Fun(p,x)
-                        }
-                      }
-                    }
                     for (repet in 1:dim(object@.Data)[3]){
                       for (t in 1:dim(object@.Data)[1]){
                         for (Var in 1:length(object@bionoVarIndex)){
