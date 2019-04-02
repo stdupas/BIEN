@@ -83,13 +83,15 @@ setwd("/home/dupas/BIEN/")
 #           as in environmental niche modelling, as oposed to bionomic ecological variables.
 # ecodelay= indices of parameter that determine the tiñe delay in the ecossytem model
 
+validParam= function(object){
+  if (!all(lapply(object,class)=="numeric")) stop("error in parameter construction : should be a list of numeric")
+  if (!all(order(c(object@eco,object@indic))==1:length(object))) stop("error in ecological and indicator parameters identity. The union of @eco and @indic is not 1:length(parameter)")
+}
+
 setClass("parameter",
          contains="list",
-         slot = c(eco="integer",indic="integer",iscoeno="integer",ecodelay="integer"),
-         validity=function(object){
-           if (!all(lapply(object,class)=="numeric")) stop("error in parameter construction : should be a list of numeric")
-           if (!all(order(c(object@eco,object@indic))==1:length(object))) stop("error in ecological and indicator parameters identity. The union of @eco and @indic is not 1:length(parameter)")
-         }
+         slot = c(eco="integer",indic="integer",iscoeno="integer",ecodelay="integer")
+         #validity= validParam
 )
 
 x=p = new("parameter",
@@ -168,8 +170,8 @@ setMethod("subset",
 a=subset(x=p,type="eco");a          
 b=subset(x=p,type="iscoeno");b          
 c=subset(x=p,type="indic");c
-c=subset(x=p,type="ecodelay");c
-d=subset(x=p,index=c(1:5,7,16:17,18));d
+d=subset(x=p,type="ecodelay");d
+e=subset(x=p,index=c(1:5,7,16:17,18));d
 names(a)
 names(b)
 names(c)
@@ -450,6 +452,13 @@ setMethod("simulate",
            switch(option,
                   fromIndep = {
                     p = subset(object@edge@p,type="iscoeno")
+                    res=lapply(1:dim(object@.Data)[3],function(x){
+                      lapply(1:dim(object@.Data)[3],function(y){
+                        lapply(object@scoenoVarIndex,function(z){
+                          x = object@.Data[t,object@indicVar[object@scoenoVarIndex],repet]
+                          Fun = object@edge@rscoenoIndic2Eco[[Var]]
+                          object@.Data[t,object@ecoVar[Var],repet] <- Fun(p,x)
+                        })})})
                     for (repet in 1:dim(object@.Data)[3]){
                       for (t in 1:dim(object@.Data)[1]){
                         for (Var in object@scoenoVarIndex){
